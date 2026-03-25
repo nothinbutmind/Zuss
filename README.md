@@ -1,4 +1,4 @@
-# ZUSS Protocol
+# ZUS Protocol
 
 Private reward distribution on Flow EVM.
 
@@ -49,6 +49,8 @@ For the current MVP, the TUI uses fixed demo values for `message` and `stealth_t
 - Mainnet RPC: `https://mainnet.evm.nodes.onflow.org`
 - Mainnet chain ID: `747`
 - Mainnet explorer: `https://evm.flowscan.io`
+- Deployed address: `0x7d62843F6BC6763adBd5CfF2f17a7e2A05E44219`
+- Testnet contract: [0xd86bDb09027b50524CCeE49557C8AF62Ae4C83bD](https://evm-testnet.flowscan.io/address/0xd86bDb09027b50524CCeE49557C8AF62Ae4C83bD?tab=contract)
 
 Deployed verifier and protocol addresses are now expected to be configured per environment instead of relying on the old Avalanche/Fuji defaults.
 
