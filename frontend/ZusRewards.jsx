@@ -80,14 +80,14 @@ function ActionBtn({ children, locked, onClick }) {
 /* ─── outline nav button ─── */
 function walletLabel(account, connecting) {
   if (connecting) {
-    return "WALLET_<br/>CONNECTING";
+    return "WALLET_CONNECTING";
   }
 
   if (!account) {
-    return "CONNECT_<br/>WALLET";
+    return "CONNECT_WALLET";
   }
 
-  return `${account.slice(0, 6)}<br/>${account.slice(-4)}`;
+  return `${account.slice(0, 6)}...${account.slice(-4)}`;
 }
 
 function NavBtn({ wallet, onConnect }) {
@@ -104,7 +104,7 @@ function NavBtn({ wallet, onConnect }) {
         padding:"10px 20px", cursor:"pointer",
         background: hov ? CYAN : "transparent",
         boxShadow: hov ? `0 0 20px rgba(0,255,200,.5)` : `0 0 10px rgba(0,255,200,.15)`,
-        transition:"all .25s", lineHeight:1.4, textAlign:"center",
+        transition:"all .25s", lineHeight:1.2, textAlign:"center", whiteSpace:"nowrap", minWidth:172,
       }}
       dangerouslySetInnerHTML={{ __html: walletLabel(wallet.account, wallet.connecting) }}
     />

@@ -186,14 +186,14 @@ function makeExplorerUrl(hash) {
 
 function walletLabel(account, connecting) {
   if (connecting) {
-    return "WALLET_<br/>CONNECTING";
+    return "WALLET_CONNECTING";
   }
 
   if (!account) {
-    return "CONNECT_<br/>WALLET";
+    return "CONNECT_WALLET";
   }
 
-  return `${account.slice(0, 6)}<br/>${account.slice(-4)}`;
+  return `${account.slice(0, 6)}...${account.slice(-4)}`;
 }
 
 function Btn({ children, outline, small, onClick, disabled }) {
@@ -1231,7 +1231,9 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
                 boxShadow: walletHov ? "0 0 20px rgba(0,255,200,.5)" : "0 0 10px rgba(0,255,200,.15)",
                 transition: "all .25s",
                 textAlign: "center",
-                lineHeight: 1.45,
+                whiteSpace: "nowrap",
+                minWidth: 172,
+                lineHeight: 1.2,
               }}
               dangerouslySetInnerHTML={{ __html: walletLabel(wallet.account, wallet.connecting) }}
             />

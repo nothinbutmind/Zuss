@@ -20,14 +20,14 @@ function shortAddress(value) {
 
 function walletLabel(account, connecting) {
   if (connecting) {
-    return "WALLET_<br/>CONNECTING";
+    return "WALLET_CONNECTING";
   }
 
   if (!account) {
-    return "CONNECT_<br/>WALLET";
+    return "CONNECT_WALLET";
   }
 
-  return `${account.slice(0, 6)}<br/>${account.slice(-4)}`;
+  return `${account.slice(0, 6)}...${account.slice(-4)}`;
 }
 
 function NavLink({ label, active, onClick }) {
@@ -72,6 +72,8 @@ function WalletBtn({ wallet, onConnect }) {
         padding: "12px 22px",
         cursor: "pointer",
         textAlign: "center",
+        whiteSpace: "nowrap",
+        minWidth: 172,
         background: hovered ? CYAN : "transparent",
         boxShadow: hovered ? "0 0 24px rgba(0,255,200,.45)" : "0 0 12px rgba(0,255,200,.12)",
         transition: "all .25s",
