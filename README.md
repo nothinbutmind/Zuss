@@ -34,7 +34,26 @@ For the current MVP, the TUI uses fixed demo values for `message` and `stealth_t
 - `tui/` - Rust terminal app for proof generation and claiming
 - `verifier/` - UltraHonk Solidity verifier
 - `zusprotocol/` - protocol contract for campaigns, funding, and claims
-- `frontend/` - React frontend
+- `frontend/` - React frontend deployed on Render
+
+## Live App
+
+- Frontend: [https://zus-protocol.onrender.com](https://zus-protocol.onrender.com)
+
+## Frontend Local Dev
+
+```bash
+cd frontend
+pnpm install
+pnpm dev
+```
+
+Build for production:
+
+```bash
+cd frontend
+pnpm build
+```
 
 ## Contracts
 
@@ -49,8 +68,8 @@ For the current MVP, the TUI uses fixed demo values for `message` and `stealth_t
 - Mainnet RPC: `https://mainnet.evm.nodes.onflow.org`
 - Mainnet chain ID: `747`
 - Mainnet explorer: `https://evm.flowscan.io`
-- Deployed address: `0x7d62843F6BC6763adBd5CfF2f17a7e2A05E44219`
-- Testnet contract: [0xd86bDb09027b50524CCeE49557C8AF62Ae4C83bD](https://evm-testnet.flowscan.io/address/0xd86bDb09027b50524CCeE49557C8AF62Ae4C83bD?tab=contract)
+- Deployment wallet: `0x7d62843F6BC6763adBd5CfF2f17a7e2A05E44219`
+- Testnet protocol contract: [0xd86bDb09027b50524CCeE49557C8AF62Ae4C83bD](https://evm-testnet.flowscan.io/address/0xd86bDb09027b50524CCeE49557C8AF62Ae4C83bD?tab=contract)
 
 Deployed verifier and protocol addresses are now expected to be configured per environment instead of relying on the old Avalanche/Fuji defaults.
 
@@ -59,6 +78,8 @@ Deployed verifier and protocol addresses are now expected to be configured per e
 - Merkle paths stay offchain; only the root is committed onchain
 - payouts are currently flat per campaign
 - the shared verifier is reused across campaigns
+- the frontend falls back to three demo campaigns when the Rust API is empty or unavailable
+- the Render deployment serves the `frontend/` app
 
 See also:
 
