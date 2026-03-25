@@ -1,0 +1,12 @@
+/Users/lisa/Documents/coding/Zus/tui/target/debug/deps/rand_core-4607cd624e010a91.d: /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/lib.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/block.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/error.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/impls.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/le.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/os.rs
+
+/Users/lisa/Documents/coding/Zus/tui/target/debug/deps/librand_core-4607cd624e010a91.rlib: /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/lib.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/block.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/error.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/impls.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/le.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/os.rs
+
+/Users/lisa/Documents/coding/Zus/tui/target/debug/deps/librand_core-4607cd624e010a91.rmeta: /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/lib.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/block.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/error.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/impls.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/le.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/os.rs
+
+/Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/lib.rs:
+/Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/block.rs:
+/Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/error.rs:
+/Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/impls.rs:
+/Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/le.rs:
+/Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/rand_core-0.6.4/src/os.rs:

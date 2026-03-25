@@ -1,0 +1,1 @@
+/Users/lisa/Documents/coding/Zus/tui/target/debug/tui: /Users/lisa/Documents/coding/Zus/tui/src/error.rs /Users/lisa/Documents/coding/Zus/tui/src/main.rs /Users/lisa/Documents/coding/Zus/tui/src/types.rs
