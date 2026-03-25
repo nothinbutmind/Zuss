@@ -14,33 +14,6 @@ const BORDER_HOV = "rgba(0,255,200,.22)";
 const TREE_MAX_LEAVES = 1 << 12;
 
 /* ─── pixel cat ─── */
-function PixelCat() {
-  const [hov, setHov] = useState(false);
-  const pixels = [
-    "0011011100","0111111110","1111111111",
-    "1010110101","1111111111","0111111110",
-    "0101000101","0101000101",
-  ];
-  return (
-    <div onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{ cursor:"pointer", display:"inline-block", transition:"transform .2s",
-        transform: hov ? "scale(1.3) translateY(-2px)" : "scale(1)" }} title="=^._.^=">
-      {pixels.map((row, ri) => (
-        <div key={ri} style={{ display:"flex" }}>
-          {row.split("").map((px, ci) => (
-            <div key={ci} style={{
-              width:3, height:3,
-              background: px==="1" ? (hov ? CYAN : CYAN_MID) : "transparent",
-              boxShadow: px==="1" && hov ? "0 0 4px rgba(0,255,200,.6)" : "none",
-              transition:"background .2s, box-shadow .2s",
-            }}/>
-          ))}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 /* ─── scroll reveal ─── */
 function useReveal(threshold = 0.1) {
   const ref = useRef(null);
@@ -63,8 +36,8 @@ function EgressBar({ pct }) {
   return (
     <div>
       <div style={{ display:"flex", justifyContent:"space-between", marginBottom:5 }}>
-        <span style={{ fontFamily:MONO, fontSize:8, color:MUTED2, letterSpacing:1.5 }}>DISTRIBUTION STATUS</span>
-        <span style={{ fontFamily:MONO, fontSize:8, color:color, letterSpacing:1 }}>{pct}%</span>
+        <span style={{ fontFamily:MONO, fontSize: 9, color:MUTED2, letterSpacing:1.5 }}>DISTRIBUTION STATUS</span>
+        <span style={{ fontFamily:MONO, fontSize: 9, color:color, letterSpacing:1 }}>{pct}%</span>
       </div>
       <div style={{ height:2, background:"rgba(0,255,200,.07)", borderRadius:1 }}>
         <div style={{
@@ -83,8 +56,8 @@ function ActionBtn({ children, locked, onClick }) {
   const [hov, setHov] = useState(false);
   if (locked) return (
     <div style={{
-      fontFamily:MONO, fontSize:9, letterSpacing:2, color:MUTED2,
-      border:`1px solid ${BORDER}`, padding:"9px 0", textAlign:"center",
+      fontFamily:MONO, fontSize: 11, letterSpacing:2, color:MUTED2,
+      border:`1px solid ${BORDER}`, padding:"12px 0", textAlign:"center",
       cursor:"not-allowed",
     }}>{children}</div>
   );
@@ -92,10 +65,10 @@ function ActionBtn({ children, locked, onClick }) {
     <div onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
       onClick={onClick}
       style={{
-        fontFamily:MONO, fontSize:9, letterSpacing:2,
+        fontFamily:MONO, fontSize: 11, letterSpacing:2,
         color: hov ? BG : CYAN,
         border:`1px solid ${hov ? CYAN : CYAN_DIM}`,
-        padding:"9px 0", textAlign:"center", cursor:"pointer",
+        padding:"12px 0", textAlign:"center", cursor:"pointer",
         background: hov ? CYAN : "transparent",
         boxShadow: hov ? `0 0 20px rgba(0,255,200,.5)` : `0 0 8px rgba(0,255,200,.1)`,
         transition:"all .25s",
@@ -125,10 +98,10 @@ function NavBtn({ wallet, onConnect }) {
       onMouseLeave={() => setHov(false)}
       onClick={() => void onConnect()}
       style={{
-        fontFamily:MONO, fontSize:9, letterSpacing:2,
+        fontFamily:MONO, fontSize: 11, letterSpacing:2,
         color: hov ? BG : CYAN,
         border:`1px solid ${CYAN}`,
-        padding:"8px 18px", cursor:"pointer",
+        padding:"10px 20px", cursor:"pointer",
         background: hov ? CYAN : "transparent",
         boxShadow: hov ? `0 0 20px rgba(0,255,200,.5)` : `0 0 10px rgba(0,255,200,.15)`,
         transition:"all .25s", lineHeight:1.4, textAlign:"center",
@@ -176,23 +149,23 @@ function RewardCard({ status, id, name, egress, recipients, reEgress, btnLabel, 
           <div style={{ fontFamily:MONO, fontSize:11, color:MUTED2, opacity:.5, letterSpacing:2, lineHeight:1.6, textAlign:"center" }}>
             {"[==]"}<br/>{"[  ]"}<br/>{"[__]"}
           </div>
-          <div style={{ fontFamily:MONO, fontSize:8, color:MUTED2, letterSpacing:2 }}>NEXT_PHASE_PENDING</div>
+          <div style={{ fontFamily:MONO, fontSize: 9, color:MUTED2, letterSpacing:2 }}>NEXT_PHASE_PENDING</div>
         </div>
       ) : (
         <>
           {/* header row */}
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
             <div style={{
-              fontFamily:MONO, fontSize:8, letterSpacing:1.5,
+              fontFamily:MONO, fontSize: 10, letterSpacing:1.5,
               color: locked ? MUTED2 : CYAN,
               border:`1px solid ${locked ? BORDER : "rgba(0,255,200,.3)"}`,
               padding:"2px 8px",
             }}>LIVE</div>
-            <div style={{ fontFamily:MONO, fontSize:8, color:MUTED2, letterSpacing:1 }}>ID: {id}</div>
+            <div style={{ fontFamily:MONO, fontSize: 9, color:MUTED2, letterSpacing:1 }}>ID: {id}</div>
           </div>
 
           {/* name */}
-          <h3 style={{ fontFamily:MONO, fontSize:15, color: locked ? MUTED : TEXT, letterSpacing:2, lineHeight:1.3 }}>{name}</h3>
+          <h3 style={{ fontFamily:MONO, fontSize:17, color: locked ? MUTED : TEXT, letterSpacing:2, lineHeight:1.35 }}>{name}</h3>
 
           {/* bar */}
           <EgressBar pct={egress} />
@@ -200,12 +173,12 @@ function RewardCard({ status, id, name, egress, recipients, reEgress, btnLabel, 
           {/* stats */}
           <div style={{ display:"flex", gap:28 }}>
             <div>
-              <div style={{ fontFamily:MONO, fontSize:7, color:MUTED2, letterSpacing:1.5, marginBottom:3 }}>RECIPIENTS</div>
-              <div style={{ fontFamily:MONO, fontSize:14, color: locked ? MUTED : TEXT }}>{recipients.toLocaleString()}</div>
+              <div style={{ fontFamily:MONO, fontSize: 9, color:MUTED2, letterSpacing:1.5, marginBottom:3 }}>RECIPIENTS</div>
+              <div style={{ fontFamily:MONO, fontSize:16, color: locked ? MUTED : TEXT }}>{recipients.toLocaleString()}</div>
             </div>
             <div>
-              <div style={{ fontFamily:MONO, fontSize:7, color:MUTED2, letterSpacing:1.5, marginBottom:3 }}>EGRESS</div>
-              <div style={{ fontFamily:MONO, fontSize:14, color: locked ? MUTED2 : TEXT }}>{reEgress}%</div>
+              <div style={{ fontFamily:MONO, fontSize: 9, color:MUTED2, letterSpacing:1.5, marginBottom:3 }}>EGRESS</div>
+              <div style={{ fontFamily:MONO, fontSize:16, color: locked ? MUTED2 : TEXT }}>{reEgress}%</div>
             </div>
           </div>
 
@@ -229,7 +202,7 @@ function Tab({ label, active, onClick }) {
   return (
     <div onClick={onClick} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
       style={{
-        fontFamily:MONO, fontSize:9, letterSpacing:2,
+        fontFamily:MONO, fontSize: 10, letterSpacing:2,
         color: active ? TEXT : hov ? TEXT : MUTED,
         padding:"10px 20px",
         borderBottom:`2px solid ${active ? CYAN : "transparent"}`,
@@ -279,7 +252,7 @@ function NavLink({ label, active, onClick }) {
   const [hov, setHov] = useState(false);
   return (
     <span style={{
-      fontFamily:MONO, fontSize:10, letterSpacing:2,
+      fontFamily:MONO, fontSize:12, letterSpacing:2,
       color: active ? TEXT : hov ? TEXT : MUTED,
       borderBottom:`2px solid ${active ? CYAN : "transparent"}`,
       paddingBottom:4, cursor:"pointer",
@@ -297,6 +270,7 @@ function NavLink({ label, active, onClick }) {
 export default function App({
   wallet,
   onConnect,
+  onNavigateHome,
   onNavigatePage,
   campaigns,
   campaignsLoading,
@@ -357,6 +331,37 @@ export default function App({
           0%,100% { border-color: rgba(0,255,200,.08); }
           50%     { border-color: rgba(0,255,200,.18); }
         }
+        @media (max-width: 920px) {
+          .rewards-header {
+            height:auto !important;
+            padding:18px 20px !important;
+            flex-direction:column !important;
+            align-items:flex-start !important;
+            gap:14px !important;
+          }
+          .rewards-header-nav {
+            width:100% !important;
+            justify-content:space-between !important;
+            gap:14px !important;
+            flex-wrap:wrap !important;
+          }
+          .rewards-main {
+            padding:32px 20px 48px !important;
+          }
+        }
+        @media (max-width: 1200px) {
+          .rewards-grid {
+            grid-template-columns:repeat(2, 1fr) !important;
+          }
+        }
+        @media (max-width: 760px) {
+          .rewards-grid {
+            grid-template-columns:1fr !important;
+          }
+          .rewards-footer {
+            padding:24px 18px 30px !important;
+          }
+        }
       `}</style>
 
       <div style={{ minHeight:"100vh", display:"flex", flexDirection:"column", position:"relative", overflow:"hidden" }}>
@@ -371,27 +376,32 @@ export default function App({
           maskImage:"radial-gradient(ellipse at 70% 20%, black 20%, transparent 70%)" }}/>
 
         {/* ── HEADER ── */}
-        <header style={{
+        <header className="rewards-header" style={{
           display:"flex", alignItems:"center", justifyContent:"space-between",
-          padding:"0 40px", height:56,
+          padding:"0 40px", height:64,
           borderBottom:`1px solid ${BORDER}`,
           background:"rgba(2,13,15,.85)", backdropFilter:"blur(10px)",
           position:"sticky", top:0, zIndex:50,
           animation:"fadeUp .5s both",
         }}>
-          <span style={{ fontFamily:MONO, fontSize:13, color:CYAN, letterSpacing:3,
-            textShadow:`0 0 14px rgba(0,255,200,.5)` }}>ZUS_PROTOCOL</span>
+          <span
+            onClick={onNavigateHome}
+            style={{ fontFamily:MONO, fontSize:15, color:CYAN, letterSpacing:3,
+              textShadow:`0 0 14px rgba(0,255,200,.5)`, cursor:"pointer" }}
+          >
+            ZUS_PROTOCOL
+          </span>
 
-          <div style={{ display:"flex", gap:32, alignItems:"center" }}>
-            {["Campaigns","Analytics","Vault","Protocols"].map(t => (
+          <div className="rewards-header-nav" style={{ display:"flex", gap:32, alignItems:"center" }}>
+            {["Dashboard","Create Campaign","Rewards"].map(t => (
               <NavLink
                 key={t}
                 label={t}
-                active={t === "Vault"}
+                active={t === "Rewards"}
                 onClick={() => {
-                  if (t === "Campaigns") onNavigatePage("campaigns");
-                  if (t === "Vault") onNavigatePage("vault");
-                  if (t === "Protocols") onNavigatePage("protocols");
+                  if (t === "Dashboard") onNavigatePage("dashboard");
+                  if (t === "Create Campaign") onNavigatePage("campaigns");
+                  if (t === "Rewards") onNavigatePage("rewards");
                 }}
               />
             ))}
@@ -401,7 +411,7 @@ export default function App({
         </header>
 
         {/* ── MAIN ── */}
-        <main style={{ flex:1, padding:"48px 40px 60px", position:"relative", zIndex:1 }}>
+        <main className="rewards-main" style={{ flex:1, padding:"48px 40px 60px", position:"relative", zIndex:1 }}>
 
           {/* hero heading */}
           <div style={{ marginBottom:36, animation:"fadeUp .6s .15s both",
@@ -412,11 +422,11 @@ export default function App({
             <h1 style={{ fontFamily:MONO, fontSize:"clamp(28px,4.5vw,52px)", color:TEXT, letterSpacing:4, lineHeight:1.1, marginBottom:12 }}>
               <GlitchTitle>ACTIVE REWARDS_</GlitchTitle>
             </h1>
-            <p style={{ fontFamily:MONO, fontSize:9, color:MUTED, letterSpacing:2, lineHeight:2, maxWidth:480 }}>
+            <p style={{ fontFamily:MONO, fontSize:11, color:MUTED, letterSpacing:2, lineHeight:2, maxWidth:560 }}>
               <Typewriter
                 text="VALIDATING NETWORK INTEGRITY. CLAIM CONFIDENTIAL PERKS AND LIQUIDITY INCENTIVES FROM THE MONOLITH."
                 speed={18} delay={400}
-                style={{ fontFamily:MONO, fontSize:9, color:MUTED, letterSpacing:2, lineHeight:2 }}
+                style={{ fontFamily:MONO, fontSize:11, color:MUTED, letterSpacing:2, lineHeight:2 }}
               />
             </p>
           </div>
@@ -438,22 +448,22 @@ export default function App({
               animation:"borderGlow 4s ease-in-out infinite",
             }}>
               <div style={{ padding:"8px 16px", borderRight:`1px solid ${BORDER}` }}>
-                <div style={{ fontFamily:MONO, fontSize:7, color:MUTED2, letterSpacing:2, marginBottom:4 }}>SYSTEM_STATUS</div>
+                <div style={{ fontFamily:MONO, fontSize: 8, color:MUTED2, letterSpacing:2, marginBottom:4 }}>SYSTEM_STATUS</div>
                 <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                   <div style={{ width:6, height:6, borderRadius:"50%", background:CYAN,
                     animation:"pulse 2s ease-in-out infinite" }}/>
-                  <span style={{ fontFamily:MONO, fontSize:9, color:TEXT, letterSpacing:1 }}>STABLE.OPERATIONAL</span>
+                  <span style={{ fontFamily:MONO, fontSize: 10, color:TEXT, letterSpacing:1 }}>STABLE.OPERATIONAL</span>
                 </div>
               </div>
               <div style={{ padding:"8px 16px" }}>
-                <div style={{ fontFamily:MONO, fontSize:7, color:MUTED2, letterSpacing:2, marginBottom:4 }}>FILTER_SCOPE</div>
-                <div style={{ fontFamily:MONO, fontSize:9, color:TEXT, letterSpacing:1 }}>GLOBAL_REWARDS</div>
+                <div style={{ fontFamily:MONO, fontSize: 8, color:MUTED2, letterSpacing:2, marginBottom:4 }}>FILTER_SCOPE</div>
+                <div style={{ fontFamily:MONO, fontSize: 10, color:TEXT, letterSpacing:1 }}>GLOBAL_REWARDS</div>
               </div>
             </div>
           </div>
 
           {/* grid */}
-          <div style={{
+          <div className="rewards-grid" style={{
             display:"grid",
             gridTemplateColumns:"repeat(4, 1fr)",
             gap:12,
@@ -479,13 +489,13 @@ export default function App({
           </div>
 
           {!campaignsLoading && campaignsError ? (
-            <div style={{ marginTop: 16, fontFamily: MONO, fontSize: 9, color: "#a58787", lineHeight: 1.8 }}>
+            <div style={{ marginTop: 16, fontFamily: MONO, fontSize: 10, color: "#a58787", lineHeight: 1.8 }}>
               CAMPAIGN API UNAVAILABLE. START THE RUST SERVICE TO POPULATE ACTIVE REWARDS.
             </div>
           ) : null}
 
           {!campaignsLoading && !campaignsError && filtered.length === 0 ? (
-            <div style={{ marginTop: 16, fontFamily: MONO, fontSize: 9, color: MUTED, lineHeight: 1.8 }}>
+            <div style={{ marginTop: 16, fontFamily: MONO, fontSize: 10, color: MUTED, lineHeight: 1.8 }}>
               NO ACTIVE CAMPAIGNS RETURNED YET.
             </div>
           ) : null}
@@ -493,11 +503,14 @@ export default function App({
         </main>
 
         {/* ── FOOTER ── */}
-        <footer style={{
+        <footer className="rewards-footer" style={{
           borderTop:`1px solid ${BORDER}`,
-          padding:"14px 40px",
+          padding:"24px 20px 30px",
           display:"flex", justifyContent:"space-between", alignItems:"center",
-          fontFamily:MONO, fontSize:8, color:MUTED2, letterSpacing:1,
+          flexDirection:"column",
+          gap:10,
+          textAlign:"center",
+          fontFamily:MONO, fontSize: 11, color:MUTED2, letterSpacing:1.2,
           background:"rgba(2,13,15,.8)",
           position:"relative", zIndex:1,
         }}>
@@ -509,12 +522,8 @@ export default function App({
             </div>
           </div>
 
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <span style={{ color:"#1a5550", fontSize:7, letterSpacing:2 }}>i like cats</span>
-            <PixelCat />
-          </div>
 
-          <div style={{ display:"flex", gap:24 }}>
+          <div style={{ display:"flex", gap:20, flexWrap:"wrap", justifyContent:"center" }}>
             {["X_FEED","DISCORD_SERVER","GITHUB_REPO","PRIVACY_POLICY","NEWSLETTER_SUB"].map(l => (
               <span key={l} style={{ color:MUTED2, cursor:"pointer", transition:"color .2s", letterSpacing:1.5 }}
                 onMouseEnter={e => e.target.style.color = CYAN}

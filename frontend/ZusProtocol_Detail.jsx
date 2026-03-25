@@ -76,51 +76,6 @@ function walletLabel(account, connecting) {
   return `${account.slice(0, 6)}<br/>${account.slice(-4)}`;
 }
 
-function PixelCat() {
-  const [hov, setHov] = useState(false);
-  const pixels = [
-    "0011011100",
-    "0111111110",
-    "1111111111",
-    "1010110101",
-    "1111111111",
-    "0111111110",
-    "0101000101",
-    "0101000101",
-  ];
-
-  return (
-    <div
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{
-        cursor: "pointer",
-        display: "inline-block",
-        transition: "transform .2s",
-        transform: hov ? "scale(1.3) translateY(-2px)" : "scale(1)",
-      }}
-      title="=^._.^="
-    >
-      {pixels.map((row, rowIndex) => (
-        <div key={rowIndex} style={{ display: "flex" }}>
-          {row.split("").map((pixel, pixelIndex) => (
-            <div
-              key={pixelIndex}
-              style={{
-                width: 3,
-                height: 3,
-                background: pixel === "1" ? (hov ? CYAN : CYAN_MID) : "transparent",
-                boxShadow: pixel === "1" && hov ? "0 0 4px rgba(0,255,200,.6)" : "none",
-                transition: "background .2s, box-shadow .2s",
-              }}
-            />
-          ))}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function NavLink({ label, active, onClick }) {
   const [hov, setHov] = useState(false);
   return (
@@ -130,7 +85,7 @@ function NavLink({ label, active, onClick }) {
       onClick={onClick}
       style={{
         fontFamily: MONO,
-        fontSize: 10,
+        fontSize: 12,
         letterSpacing: 2,
         color: active ? TEXT : hov ? TEXT : MUTED,
         borderBottom: `2px solid ${active ? CYAN : "transparent"}`,
@@ -153,12 +108,12 @@ function WalletBtn({ wallet, onConnect }) {
       onClick={() => void onConnect()}
       style={{
         fontFamily: MONO,
-        fontSize: 9,
+        fontSize: 11,
         letterSpacing: 2,
         lineHeight: 1.5,
         color: hov ? BG : CYAN,
         border: `1px solid ${CYAN}`,
-        padding: "7px 16px",
+        padding: "10px 20px",
         cursor: "pointer",
         textAlign: "center",
         background: hov ? CYAN : "transparent",
@@ -231,7 +186,7 @@ function Donut({ pct }) {
         >
           {progress}%
         </div>
-        <div style={{ fontFamily: MONO, fontSize: 7, color: MUTED2, letterSpacing: 1.5, marginTop: 3 }}>
+        <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 1.5, marginTop: 3 }}>
           TREE_UTILIZATION
         </div>
       </div>
@@ -286,17 +241,19 @@ function ProtoCard({ label, desc, delay }) {
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
-        borderLeft: `2px solid ${hov ? CYAN : MUTED2}`,
-        paddingLeft: 14,
-        marginBottom: 28,
+        borderLeft: `3px solid ${hov ? CYAN : MUTED2}`,
+        paddingLeft: 20,
+        paddingTop: 4,
+        paddingBottom: 4,
+        marginBottom: 64,
         transition: "border-color .3s",
         animation: `fadeUp .6s ${delay}ms both`,
       }}
     >
-      <div style={{ fontFamily: MONO, fontSize: 9, color: hov ? CYAN : CYAN_DIM, letterSpacing: 2, marginBottom: 8 }}>
+      <div style={{ fontFamily: MONO, fontSize: 14, color: hov ? CYAN : CYAN_DIM, letterSpacing: 2.4, marginBottom: 12 }}>
         {label}
       </div>
-      <div style={{ fontFamily: MONO, fontSize: 9, color: MUTED, lineHeight: 1.9, letterSpacing: 0.5 }}>
+      <div style={{ fontFamily: MONO, fontSize: 14, color: MUTED, lineHeight: 2, letterSpacing: 0.6 }}>
         {desc}
       </div>
     </div>
@@ -327,16 +284,16 @@ function BackLink({ onNavigateBack }) {
       onClick={onNavigateBack}
       style={{
         fontFamily: MONO,
-        fontSize: 8,
-        letterSpacing: 2,
+        fontSize: 13,
+        letterSpacing: 2.4,
         color: hov ? CYAN : MUTED2,
         textDecoration: hov ? "underline" : "none",
         cursor: "pointer",
         transition: "color .2s",
-        marginBottom: 40,
+        marginBottom: 56,
       }}
     >
-      {"<<"} BACK TO ACTIVE REWARDS
+      {"<<"} BACK TO REWARDS
     </div>
   );
 }
@@ -371,10 +328,10 @@ function ClaimCheckPanel({ campaign, claimAddress, setClaimAddress, claimState, 
         }}
       >
         <div>
-          <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 2, marginBottom: 8 }}>
+          <div style={{ fontFamily: MONO, fontSize: 11, color: MUTED2, letterSpacing: 2, marginBottom: 8 }}>
             ADDRESS_ELIGIBILITY_CHECK
           </div>
-          <div style={{ fontFamily: MONO, fontSize: 9, color: MUTED, letterSpacing: 1, lineHeight: 1.8 }}>
+          <div style={{ fontFamily: MONO, fontSize: 10, color: MUTED, letterSpacing: 1, lineHeight: 1.8 }}>
             ENTER AN ADDRESS TO CHECK WHETHER IT CAN CLAIM THIS CAMPAIGN THROUGH THE RUST API.
           </div>
         </div>
@@ -389,7 +346,7 @@ function ClaimCheckPanel({ campaign, claimAddress, setClaimAddress, claimState, 
             flex: 1,
             minWidth: 320,
             fontFamily: MONO,
-            fontSize: 10,
+            fontSize: 11,
             background: "rgba(0,255,200,.03)",
             border: `1px solid ${BORDER}`,
             color: TEXT,
@@ -425,10 +382,10 @@ function ClaimCheckPanel({ campaign, claimAddress, setClaimAddress, claimState, 
             padding: "14px 16px",
           }}
         >
-          <div style={{ fontFamily: MONO, fontSize: 8, color: "#ff9d9d", letterSpacing: 2, marginBottom: 6 }}>
+          <div style={{ fontFamily: MONO, fontSize: 9, color: "#ff9d9d", letterSpacing: 2, marginBottom: 6 }}>
             ADDRESS_NOT_ELIGIBLE
           </div>
-          <div style={{ fontFamily: MONO, fontSize: 9, color: "#d2a0a0", lineHeight: 1.8 }}>
+          <div style={{ fontFamily: MONO, fontSize: 10, color: "#d2a0a0", lineHeight: 1.8 }}>
             {claimState.error}
           </div>
         </div>
@@ -443,28 +400,28 @@ function ClaimCheckPanel({ campaign, claimAddress, setClaimAddress, claimState, 
             padding: "14px 16px",
           }}
         >
-          <div style={{ fontFamily: MONO, fontSize: 8, color: CYAN, letterSpacing: 2, marginBottom: 8 }}>
+          <div style={{ fontFamily: MONO, fontSize: 9, color: CYAN, letterSpacing: 2, marginBottom: 8 }}>
             ADDRESS_ELIGIBLE
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: 12 }}>
             <div>
-              <div style={{ fontFamily: MONO, fontSize: 7, color: MUTED2, letterSpacing: 1.5, marginBottom: 4 }}>CAMPAIGN</div>
-              <div style={{ fontFamily: MONO, fontSize: 9, color: TEXT, lineHeight: 1.7 }}>{campaign.name}</div>
+              <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 1.5, marginBottom: 4 }}>CAMPAIGN</div>
+              <div style={{ fontFamily: MONO, fontSize: 10, color: TEXT, lineHeight: 1.7 }}>{campaign.name}</div>
             </div>
             <div>
-              <div style={{ fontFamily: MONO, fontSize: 7, color: MUTED2, letterSpacing: 1.5, marginBottom: 4 }}>LEAF_ADDRESS</div>
-              <div style={{ fontFamily: MONO, fontSize: 9, color: TEXT, lineHeight: 1.7 }}>{claimState.payload.leaf_address}</div>
+              <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 1.5, marginBottom: 4 }}>LEAF_ADDRESS</div>
+              <div style={{ fontFamily: MONO, fontSize: 10, color: TEXT, lineHeight: 1.7 }}>{claimState.payload.leaf_address}</div>
             </div>
             <div>
-              <div style={{ fontFamily: MONO, fontSize: 7, color: MUTED2, letterSpacing: 1.5, marginBottom: 4 }}>AMOUNT</div>
-              <div style={{ fontFamily: MONO, fontSize: 9, color: TEXT, lineHeight: 1.7 }}>{claimState.payload.amount}</div>
+              <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 1.5, marginBottom: 4 }}>AMOUNT</div>
+              <div style={{ fontFamily: MONO, fontSize: 10, color: TEXT, lineHeight: 1.7 }}>{claimState.payload.amount}</div>
             </div>
             <div>
-              <div style={{ fontFamily: MONO, fontSize: 7, color: MUTED2, letterSpacing: 1.5, marginBottom: 4 }}>INDEX</div>
-              <div style={{ fontFamily: MONO, fontSize: 9, color: TEXT, lineHeight: 1.7 }}>{claimState.payload.index}</div>
+              <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 1.5, marginBottom: 4 }}>INDEX</div>
+              <div style={{ fontFamily: MONO, fontSize: 10, color: TEXT, lineHeight: 1.7 }}>{claimState.payload.index}</div>
             </div>
           </div>
-          <div style={{ marginTop: 12, fontFamily: MONO, fontSize: 8, color: MUTED, lineHeight: 1.8 }}>
+          <div style={{ marginTop: 12, fontFamily: MONO, fontSize: 9, color: MUTED, lineHeight: 1.8 }}>
             CLAIM PAYLOAD IS AVAILABLE FROM <code>{campaign.campaign_id}</code>. YOU CAN NOW CONTINUE WITH THE FULL CLAIM FLOW.
           </div>
         </div>
@@ -477,6 +434,7 @@ export default function App({
   wallet,
   onConnect,
   onNavigateBack,
+  onNavigateHome,
   onNavigatePage,
   campaignId,
   campaign,
@@ -618,6 +576,19 @@ export default function App({
           .detail-body { grid-template-columns:1fr !important; }
           .detail-main { padding:24px 20px !important; }
           .detail-aside { min-height:auto !important; }
+          .detail-header {
+            height:auto !important;
+            padding:18px 20px !important;
+            flex-direction:column !important;
+            align-items:flex-start !important;
+            gap:14px !important;
+          }
+          .detail-header-nav {
+            width:100% !important;
+            justify-content:space-between !important;
+            gap:14px !important;
+            flex-wrap:wrap !important;
+          }
         }
       `}</style>
 
@@ -646,12 +617,13 @@ export default function App({
         />
 
         <header
+          className="detail-header"
           style={{
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
             padding: "0 40px",
-            height: 56,
+            height: 64,
             borderBottom: `1px solid ${BORDER}`,
             background: "rgba(2,13,15,.88)",
             backdropFilter: "blur(10px)",
@@ -661,19 +633,22 @@ export default function App({
             animation: "fadeUp .5s both",
           }}
         >
-          <span style={{ fontFamily: MONO, fontSize: 13, color: CYAN, letterSpacing: 3, textShadow: "0 0 14px rgba(0,255,200,.5)" }}>
+          <span
+            onClick={onNavigateHome}
+            style={{ fontFamily: MONO, fontSize: 15, color: CYAN, letterSpacing: 3, textShadow: "0 0 14px rgba(0,255,200,.5)", cursor: "pointer" }}
+          >
             ZUS_PROTOCOL
           </span>
-          <div style={{ display: "flex", gap: 32, alignItems: "center" }}>
-            {["Campaigns", "Analytics", "Vault", "Protocols"].map((label) => (
+          <div className="detail-header-nav" style={{ display: "flex", gap: 32, alignItems: "center" }}>
+            {["Dashboard", "Create Campaign", "Rewards"].map((label) => (
               <NavLink
                 key={label}
                 label={label}
-                active={label === "Protocols"}
+                active={label === "Rewards"}
                 onClick={() => {
-                  if (label === "Campaigns") onNavigatePage("campaigns");
-                  if (label === "Vault") onNavigatePage("vault");
-                  if (label === "Protocols") onNavigatePage("protocols", campaignId);
+                  if (label === "Dashboard") onNavigatePage("dashboard");
+                  if (label === "Create Campaign") onNavigatePage("campaigns");
+                  if (label === "Rewards") onNavigatePage("rewards");
                 }}
               />
             ))}
@@ -681,29 +656,29 @@ export default function App({
           <WalletBtn wallet={wallet} onConnect={onConnect} />
         </header>
 
-        <div className="detail-body" style={{ flex: 1, display: "grid", gridTemplateColumns: "320px 1fr", position: "relative", zIndex: 1 }}>
+        <div className="detail-body" style={{ flex: 1, display: "grid", gridTemplateColumns: "380px 1fr", position: "relative", zIndex: 1 }}>
           <aside
             className="detail-aside"
             style={{
               borderRight: `1px solid ${BORDER}`,
-              padding: "40px 28px",
+              padding: "52px 36px",
               background: "rgba(4,20,24,.5)",
               position: "relative",
               overflow: "hidden",
               animation: "slideLeft .6s .1s both",
-              minHeight: "calc(100vh - 56px)",
+              minHeight: "calc(100vh - 64px)",
             }}
           >
             <Scanline />
             <BackLink onNavigateBack={onNavigateBack} />
 
-            <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 2, marginBottom: 14 }}>
-              PROTOCOL_DEFINITION
+            <div style={{ fontFamily: MONO, fontSize: 12, color: MUTED2, letterSpacing: 2.4, marginBottom: 18 }}>
+              CAMPAIGN_INFO
             </div>
-            <h2 style={{ fontFamily: MONO, fontSize: 18, color: TEXT, letterSpacing: 2, lineHeight: 1.25, marginBottom: 36, animation: "fadeUp .6s .2s both" }}>
-              NODE_INTEGRITY
+            <h2 style={{ fontFamily: MONO, fontSize: 26, color: TEXT, letterSpacing: 2.6, lineHeight: 1.2, marginBottom: 52, animation: "fadeUp .6s .2s both" }}>
+              CAMPAIGN
               <br />
-              REWARDS_SCHEMA
+              DETAIL_VIEW
             </h2>
 
             <ProtoCard
@@ -717,25 +692,25 @@ export default function App({
               delay={380}
             />
 
-            <div style={{ position: "absolute", bottom: 28, left: 28, right: 28, display: "flex", gap: 32, animation: "fadeIn .6s .8s both" }}>
+            <div style={{ position: "absolute", bottom: 36, left: 36, right: 36, display: "flex", gap: 40, animation: "fadeIn .6s .8s both" }}>
               <div>
-                <div style={{ fontFamily: MONO, fontSize: 7, color: MUTED2, letterSpacing: 1.5, marginBottom: 3 }}>CREATOR:</div>
-                <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED }}>{campaignData ? shortAddress(campaignData.campaign_creator_address) : "--"}</div>
+                <div style={{ fontFamily: MONO, fontSize: 10, color: MUTED2, letterSpacing: 1.8, marginBottom: 6 }}>CREATOR:</div>
+                <div style={{ fontFamily: MONO, fontSize: 11, color: MUTED }}>{campaignData ? shortAddress(campaignData.campaign_creator_address) : "--"}</div>
               </div>
               <div>
-                <div style={{ fontFamily: MONO, fontSize: 7, color: MUTED2, letterSpacing: 1.5, marginBottom: 3 }}>TREE_DEPTH:</div>
-                <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED }}>{campaignData?.depth ?? "--"}</div>
+                <div style={{ fontFamily: MONO, fontSize: 10, color: MUTED2, letterSpacing: 1.8, marginBottom: 6 }}>TREE_DEPTH:</div>
+                <div style={{ fontFamily: MONO, fontSize: 11, color: MUTED }}>{campaignData?.depth ?? "--"}</div>
               </div>
             </div>
           </aside>
 
           <main className="detail-main" style={{ padding: "40px 44px", animation: "slideRight .6s .15s both" }}>
             {campaignLoading ? (
-              <div style={{ fontFamily: MONO, fontSize: 10, color: MUTED, letterSpacing: 2 }}>
+              <div style={{ fontFamily: MONO, fontSize: 11, color: MUTED, letterSpacing: 2 }}>
                 LOADING CAMPAIGN...
               </div>
             ) : campaignError ? (
-              <div style={{ fontFamily: MONO, fontSize: 10, color: "#c59696", letterSpacing: 1.5, lineHeight: 2 }}>
+              <div style={{ fontFamily: MONO, fontSize: 11, color: "#c59696", letterSpacing: 1.5, lineHeight: 2 }}>
                 {campaignError}
               </div>
             ) : campaignData ? (
@@ -744,7 +719,7 @@ export default function App({
                   <div
                     style={{
                       fontFamily: MONO,
-                      fontSize: 8,
+                      fontSize: 9,
                       letterSpacing: 1.5,
                       color: CYAN,
                       border: `1px solid rgba(0,255,200,.35)`,
@@ -754,7 +729,7 @@ export default function App({
                   >
                     ACTIVE_CAMPAIGN
                   </div>
-                  <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 1 }}>
+                  <div style={{ fontFamily: MONO, fontSize: 9, color: MUTED2, letterSpacing: 1 }}>
                     ID: {campaignData.onchain_campaign_id.slice(0, 14)}
                   </div>
                 </div>
@@ -791,7 +766,7 @@ export default function App({
 
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 32, justifyContent: "space-between", flexWrap: "wrap" }}>
                     <div style={{ flex: 1, minWidth: 280 }}>
-                      <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 2, marginBottom: 10 }}>
+                      <div style={{ fontFamily: MONO, fontSize: 9, color: MUTED2, letterSpacing: 2, marginBottom: 10 }}>
                         RECIPIENTS_PARTICIPATING
                       </div>
                       <div style={{ fontFamily: MONO, fontSize: "clamp(36px,5vw,58px)", color: TEXT, lineHeight: 1, textShadow: "0 0 20px rgba(0,255,200,.12)" }}>
@@ -819,7 +794,7 @@ export default function App({
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            fontSize: 9,
+                            fontSize: 10,
                             color: BG,
                             fontWeight: 700,
                             boxShadow: `0 0 8px rgba(0,255,200,.5)`,
@@ -829,8 +804,8 @@ export default function App({
                           ✓
                         </div>
                         <div>
-                          <div style={{ fontFamily: MONO, fontSize: 7, color: MUTED2, letterSpacing: 1.5 }}>MERKLE_VERIFIED</div>
-                          <div style={{ fontFamily: MONO, fontSize: 10, color: CYAN, letterSpacing: 1 }}>TRUE</div>
+                          <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 1.5 }}>MERKLE_VERIFIED</div>
+                          <div style={{ fontFamily: MONO, fontSize: 11, color: CYAN, letterSpacing: 1 }}>TRUE</div>
                         </div>
                       </div>
                     </div>
@@ -842,24 +817,24 @@ export default function App({
                 </div>
 
                 <div style={{ marginBottom: 28, animation: "fadeUp .6s .65s both" }}>
-                  <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 2, marginBottom: 12 }}>
+                  <div style={{ fontFamily: MONO, fontSize: 9, color: MUTED2, letterSpacing: 2, marginBottom: 12 }}>
                     CAMPAIGN_METADATA
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 16 }}>
                     <div>
-                      <div style={{ fontFamily: MONO, fontSize: 7, color: MUTED2, letterSpacing: 1.5, marginBottom: 5 }}>CREATOR_ADDRESS</div>
+                      <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 1.5, marginBottom: 5 }}>CREATOR_ADDRESS</div>
                       <div style={{ fontFamily: MONO, fontSize: 12, color: TEXT, lineHeight: 1.7 }}>{campaignData.campaign_creator_address}</div>
                     </div>
                     <div>
-                      <div style={{ fontFamily: MONO, fontSize: 7, color: MUTED2, letterSpacing: 1.5, marginBottom: 5 }}>MERKLE_ROOT</div>
+                      <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 1.5, marginBottom: 5 }}>MERKLE_ROOT</div>
                       <div style={{ fontFamily: MONO, fontSize: 12, color: CYAN, lineHeight: 1.7, wordBreak: "break-all" }}>{campaignData.merkle_root}</div>
                     </div>
                     <div>
-                      <div style={{ fontFamily: MONO, fontSize: 7, color: MUTED2, letterSpacing: 1.5, marginBottom: 5 }}>HASH_ALGORITHM</div>
+                      <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 1.5, marginBottom: 5 }}>HASH_ALGORITHM</div>
                       <div style={{ fontFamily: MONO, fontSize: 12, color: TEXT, lineHeight: 1.7 }}>{campaignData.hash_algorithm}</div>
                     </div>
                     <div>
-                      <div style={{ fontFamily: MONO, fontSize: 7, color: MUTED2, letterSpacing: 1.5, marginBottom: 5 }}>LEAF_ENCODING</div>
+                      <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 1.5, marginBottom: 5 }}>LEAF_ENCODING</div>
                       <div style={{ fontFamily: MONO, fontSize: 12, color: TEXT, lineHeight: 1.7 }}>{campaignData.leaf_encoding}</div>
                     </div>
                   </div>
@@ -882,14 +857,16 @@ export default function App({
         <footer
           style={{
             borderTop: `1px solid ${BORDER}`,
-            padding: "14px 40px",
+            padding: "24px 20px 30px",
             display: "flex",
-            justifyContent: "space-between",
+            flexDirection: "column",
             alignItems: "center",
+            gap: 10,
+            textAlign: "center",
             fontFamily: MONO,
-            fontSize: 8,
+            fontSize: 11,
             color: MUTED2,
-            letterSpacing: 1,
+            letterSpacing: 1.2,
             background: "rgba(2,13,15,.8)",
             position: "relative",
             zIndex: 1,
@@ -903,11 +880,7 @@ export default function App({
               BUILD_2984-X | NODE_STABLE | UPTIME_99.9%
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ color: "#1a5550", fontSize: 7, letterSpacing: 2 }}>i like cats</span>
-            <PixelCat />
-          </div>
-          <div style={{ display: "flex", gap: 24 }}>
+          <div style={{ display: "flex", gap: 20, flexWrap: "wrap", justifyContent: "center" }}>
             {["X_FEED", "DISCORD_SERVER", "GITHUB_REPO", "PRIVACY_POLICY", "NEWSLETTER_SUB"].map((item) => (
               <span
                 key={item}

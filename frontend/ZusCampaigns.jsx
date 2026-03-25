@@ -12,6 +12,7 @@ import {
 } from "viem";
 import { appConfig, getCreateCampaignConfigErrors, resolveApiUrl } from "./config.js";
 import { zusProtocolAbi } from "./zusProtocolAbi.js";
+import { demoCampaigns } from "./demoCampaigns.js";
 
 const CYAN = "#00ffc8";
 const CYAN_DIM = "#00ddb0";
@@ -193,51 +194,6 @@ function walletLabel(account, connecting) {
   }
 
   return `${account.slice(0, 6)}<br/>${account.slice(-4)}`;
-}
-
-function PixelCat() {
-  const [hov, setHov] = useState(false);
-  const pixels = [
-    "0011011100",
-    "0111111110",
-    "1111111111",
-    "1010110101",
-    "1111111111",
-    "0111111110",
-    "0101000101",
-    "0101000101",
-  ];
-
-  return (
-    <div
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{
-        cursor: "pointer",
-        display: "inline-block",
-        transition: "transform .2s",
-        transform: hov ? "scale(1.3) translateY(-2px)" : "scale(1)",
-      }}
-      title="=^._.^="
-    >
-      {pixels.map((row, rowIndex) => (
-        <div key={rowIndex} style={{ display: "flex" }}>
-          {row.split("").map((pixel, pixelIndex) => (
-            <div
-              key={pixelIndex}
-              style={{
-                width: 3,
-                height: 3,
-                background: pixel === "1" ? (hov ? CYAN : CYAN_MID) : "transparent",
-                boxShadow: pixel === "1" && hov ? "0 0 4px rgba(0,255,200,.6)" : "none",
-                transition: "background .2s, box-shadow .2s",
-              }}
-            />
-          ))}
-        </div>
-      ))}
-    </div>
-  );
 }
 
 function Btn({ children, outline, small, onClick, disabled }) {
@@ -439,7 +395,7 @@ function JsonPanel({ campaignName, instant, merkle, payoutAvax, fundingAvax, rec
         border: `1px solid ${BORDER}`,
         padding: 16,
         fontFamily: MONO,
-        fontSize: 9.5,
+        fontSize: 10.5,
         lineHeight: 1.9,
         position: "relative",
         height: "100%",
@@ -453,7 +409,7 @@ function JsonPanel({ campaignName, instant, merkle, payoutAvax, fundingAvax, rec
           marginBottom: 12,
         }}
       >
-        <span style={{ color: MUTED2, letterSpacing: 2, fontSize: 8 }}>CAMPAIGN_PAYLOAD.JSON</span>
+        <span style={{ color: MUTED2, letterSpacing: 2, fontSize: 9 }}>CAMPAIGN_PAYLOAD.JSON</span>
         <div style={{ display: "flex", gap: 5 }}>
           {["#ff6060", "#ffb740", "#00ffc8"].map((color, index) => (
             <div
@@ -482,8 +438,8 @@ function EgressBar({ pct, live }) {
   return (
     <div style={{ minWidth: 120 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-        <span style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 1 }}>TREE_USAGE</span>
-        <span style={{ fontFamily: MONO, fontSize: 8, color: live ? CYAN : MUTED, letterSpacing: 1 }}>
+        <span style={{ fontFamily: MONO, fontSize: 9, color: MUTED2, letterSpacing: 1 }}>TREE_USAGE</span>
+        <span style={{ fontFamily: MONO, fontSize: 9, color: live ? CYAN : MUTED, letterSpacing: 1 }}>
           {pct.toFixed(1)}%
         </span>
       </div>
@@ -505,7 +461,7 @@ function EgressBar({ pct, live }) {
   );
 }
 
-function CampaignRow({ campaign, delay = 0 }) {
+function CampaignRow({ campaign, delay = 0, onOpen }) {
   const [visible, setVisible] = useState(false);
   const [hovered, setHovered] = useState(false);
   const ref = useRef(null);
@@ -534,6 +490,7 @@ function CampaignRow({ campaign, delay = 0 }) {
   return (
     <div
       ref={ref}
+      onClick={() => onOpen?.(campaign.campaign_id)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
@@ -577,7 +534,7 @@ function CampaignRow({ campaign, delay = 0 }) {
       <div
         style={{
           fontFamily: MONO,
-          fontSize: 8,
+          fontSize: 9,
           color: live ? CYAN : MUTED,
           border: `1px solid ${live ? "rgba(0,255,200,.3)" : BORDER}`,
           padding: "2px 8px",
@@ -589,7 +546,7 @@ function CampaignRow({ campaign, delay = 0 }) {
       >
         {live ? "LIVE" : "EMPTY"}
       </div>
-      <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, minWidth: 72 }}>
+      <div style={{ fontFamily: MONO, fontSize: 9, color: MUTED2, minWidth: 72 }}>
         {campaign.campaign_id.slice(0, 8)}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -607,7 +564,7 @@ function CampaignRow({ campaign, delay = 0 }) {
         <div
           style={{
             fontFamily: MONO,
-            fontSize: 8,
+            fontSize: 9,
             color: MUTED2,
             letterSpacing: 1,
             overflow: "hidden",
@@ -619,7 +576,7 @@ function CampaignRow({ campaign, delay = 0 }) {
         </div>
       </div>
       <div style={{ minWidth: 80, textAlign: "right" }}>
-        <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 1, marginBottom: 2 }}>
+        <div style={{ fontFamily: MONO, fontSize: 9, color: MUTED2, letterSpacing: 1, marginBottom: 2 }}>
           RECIPIENTS
         </div>
         <div style={{ fontFamily: MONO, fontSize: 14, color: TEXT }}>
@@ -679,7 +636,7 @@ function NavItem({ icon, label, active, onClick }) {
       <span
         style={{
           fontFamily: MONO,
-          fontSize: 9,
+          fontSize: 10,
           color: highlighted ? TEXT : MUTED2,
           letterSpacing: 2,
           transition: "color .2s",
@@ -698,7 +655,7 @@ function EmptyCampaignState({ loading, error }) {
         border: `1px dashed ${BORDER}`,
         padding: "18px 20px",
         fontFamily: MONO,
-        fontSize: 9,
+        fontSize: 10,
         color: error ? "#c28f8f" : MUTED,
         lineHeight: 1.9,
       }}
@@ -712,6 +669,7 @@ function EmptyCampaignState({ loading, error }) {
 
 function StatusMessage({ createState, pendingDeployment }) {
   const explorerUrl = makeExplorerUrl(createState.txHash);
+  const filecoinUrl = createState.apiCampaign?.filecoin_url || "";
 
   if (createState.error) {
     return (
@@ -723,10 +681,10 @@ function StatusMessage({ createState, pendingDeployment }) {
           background: "rgba(66,20,24,.4)",
         }}
       >
-        <div style={{ fontFamily: MONO, fontSize: 9, color: "#ff9f9f", letterSpacing: 2, marginBottom: 4 }}>
+        <div style={{ fontFamily: MONO, fontSize: 10, color: "#ff9f9f", letterSpacing: 2, marginBottom: 4 }}>
           [CREATE_FLOW_ERROR]
         </div>
-        <div style={{ fontFamily: MONO, fontSize: 8, color: "#c79696", letterSpacing: 1, lineHeight: 1.8 }}>
+        <div style={{ fontFamily: MONO, fontSize: 9, color: "#c79696", letterSpacing: 1, lineHeight: 1.8 }}>
           {createState.error}
         </div>
       </div>
@@ -746,10 +704,10 @@ function StatusMessage({ createState, pendingDeployment }) {
         background: pendingDeployment ? "rgba(86,54,16,.18)" : "rgba(0,255,200,.04)",
       }}
     >
-      <div style={{ fontFamily: MONO, fontSize: 9, color: pendingDeployment ? "#ffca80" : CYAN_DIM, letterSpacing: 2, marginBottom: 4 }}>
+      <div style={{ fontFamily: MONO, fontSize: 10, color: pendingDeployment ? "#ffca80" : CYAN_DIM, letterSpacing: 2, marginBottom: 4 }}>
         {pendingDeployment ? "[PENDING_ONCHAIN_DEPLOYMENT]" : "[CAMPAIGN_CLUSTER_INITIALIZED]"}
       </div>
-      <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED, letterSpacing: 1, lineHeight: 1.8 }}>
+      <div style={{ fontFamily: MONO, fontSize: 9, color: MUTED, letterSpacing: 1, lineHeight: 1.8 }}>
         {createState.success || "Rust API step complete. Finish the wallet transaction."}
         {createState.apiCampaign ? (
           <>
@@ -762,11 +720,19 @@ function StatusMessage({ createState, pendingDeployment }) {
             <br />
             {explorerUrl ? (
               <a href={explorerUrl} target="_blank" rel="noreferrer" style={{ color: CYAN }}>
-                TX: {shortHash(createState.txHash)}
+                FLOW: {shortHash(createState.txHash)}
               </a>
             ) : (
-              <>TX: {shortHash(createState.txHash)}</>
+              <>FLOW: {shortHash(createState.txHash)}</>
             )}
+          </>
+        ) : null}
+        {filecoinUrl ? (
+          <>
+            <br />
+            <a href={filecoinUrl} target="_blank" rel="noreferrer" style={{ color: CYAN }}>
+              FILECOIN: OPEN REGISTRY LINK
+            </a>
           </>
         ) : null}
       </div>
@@ -775,7 +741,7 @@ function StatusMessage({ createState, pendingDeployment }) {
 }
 
 export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavigatePage }) {
-  const [active, setActive] = useState("CAMPAIGNS");
+  const [active, setActive] = useState("CREATE CAMPAIGN");
   const [campaignName, setCampaignName] = useState("");
   const [instant, setInstant] = useState(true);
   const [merkle, setMerkle] = useState(true);
@@ -791,11 +757,9 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
   const [pendingDeployment, setPendingDeployment] = useState(null);
 
   const navItems = [
-    { icon: "▦", label: "DASHBOARD", route: "home" },
-    { icon: "◎", label: "CAMPAIGNS", route: "campaigns" },
-    { icon: "▣", label: "INVENTORY", route: "vault" },
-    { icon: "▤", label: "SETTLEMENTS", route: "protocols" },
-    { icon: "▧", label: "SECURITY", route: "protocols" },
+    { icon: "▦", label: "DASHBOARD", route: "dashboard" },
+    { icon: "◎", label: "CREATE CAMPAIGN", route: "campaigns" },
+    { icon: "▣", label: "REWARDS", route: "rewards" },
   ];
 
   const parsedRecipientsForPreview = (() => {
@@ -816,13 +780,15 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
       try {
         const data = await readJson(await fetch(resolveApiUrl("/campaigns")));
         if (!cancelled) {
-          setCampaigns(
-            Array.isArray(data) ? data.filter((campaign) => Number(campaign.leaf_count) > 0) : [],
-          );
+          const liveCampaigns = Array.isArray(data)
+            ? data.filter((campaign) => Number(campaign.leaf_count) > 0)
+            : [];
+          setCampaigns(liveCampaigns.length > 0 ? liveCampaigns : demoCampaigns);
         }
-      } catch (error) {
+      } catch {
         if (!cancelled) {
-          setCampaignsError(parseErrorMessage(error));
+          setCampaigns(demoCampaigns);
+          setCampaignsError("");
         }
       } finally {
         if (!cancelled) {
@@ -1164,10 +1130,6 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
                 active={active === item.label}
                 onClick={() => {
                   setActive(item.label);
-                  if (item.route === "home") {
-                    onNavigateHome();
-                    return;
-                  }
                   onNavigatePage(item.route);
                 }}
               />
@@ -1183,7 +1145,7 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
             style={{
               padding: "8px 16px 16px",
               fontFamily: MONO,
-              fontSize: 8,
+              fontSize: 9,
               color: MUTED2,
               letterSpacing: 1,
               lineHeight: 1.8,
@@ -1205,7 +1167,7 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
               alignItems: "center",
               justifyContent: "space-between",
               padding: "0 32px",
-              height: 56,
+              height: 64,
               borderBottom: `1px solid ${BORDER}`,
               background: "rgba(2,13,15,.6)",
               backdropFilter: "blur(8px)",
@@ -1216,19 +1178,19 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
             }}
           >
             <div style={{ display: "flex", gap: 0, flexWrap: "wrap" }}>
-              {["Campaigns", "Analytics", "Vault", "Protocols"].map((tab) => {
-                const isActive = tab === "Campaigns";
+              {["Dashboard", "Create Campaign", "Rewards"].map((tab) => {
+                const isActive = tab === "Create Campaign";
 
                 return (
                   <div
                     key={tab}
                     style={{
                       fontFamily: MONO,
-                      fontSize: 10,
+                      fontSize: 12,
                       letterSpacing: 2,
                       color: isActive ? TEXT : MUTED,
-                      padding: "0 20px",
-                      height: 56,
+                      padding: "0 22px",
+                      height: 64,
                       display: "flex",
                       alignItems: "center",
                       borderBottom: isActive ? `2px solid ${CYAN}` : "2px solid transparent",
@@ -1236,14 +1198,14 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
                       transition: "color .2s",
                     }}
                     onClick={() => {
-                      if (tab === "Campaigns") {
+                      if (tab === "Dashboard") {
+                        onNavigatePage("dashboard");
+                      }
+                      if (tab === "Create Campaign") {
                         onNavigatePage("campaigns");
                       }
-                      if (tab === "Vault") {
-                        onNavigatePage("vault");
-                      }
-                      if (tab === "Protocols") {
-                        onNavigatePage("protocols");
+                      if (tab === "Rewards") {
+                        onNavigatePage("rewards");
                       }
                     }}
                   >
@@ -1259,11 +1221,11 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
               onClick={() => void onConnect()}
               style={{
                 fontFamily: MONO,
-                fontSize: 9,
+                fontSize: 11,
                 letterSpacing: 2,
                 color: walletHov ? BG : CYAN,
                 border: `1px solid ${CYAN}`,
-                padding: "8px 16px",
+                padding: "12px 22px",
                 cursor: "pointer",
                 background: walletHov ? CYAN : "transparent",
                 boxShadow: walletHov ? "0 0 20px rgba(0,255,200,.5)" : "0 0 10px rgba(0,255,200,.15)",
@@ -1288,13 +1250,13 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
 
             <div style={{ position: "relative", zIndex: 1 }}>
               <div style={{ animation: "fadeUp .6s .2s both" }}>
-                <div style={{ fontFamily: MONO, fontSize: 9, color: CYAN_DIM, letterSpacing: 2, marginBottom: 8 }}>
+                <div style={{ fontFamily: MONO, fontSize: 10, color: CYAN_DIM, letterSpacing: 2, marginBottom: 8 }}>
                   ENTRY: 0X00_INIT
                 </div>
                 <h1 style={{ fontFamily: MONO, fontSize: "clamp(22px,3vw,34px)", color: TEXT, letterSpacing: 3, marginBottom: 12 }}>
-                  CREATE NEW CAMPAIGN_
+                  CREATE CAMPAIGN_
                 </h1>
-                <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 1.2, lineHeight: 1.8, marginBottom: 28 }}>
+                <div style={{ fontFamily: MONO, fontSize: 11, color: MUTED2, letterSpacing: 1.2, lineHeight: 1.9, marginBottom: 28 }}>
                   GET /campaigns READS THE LIVE RUST API STREAM. CREATE CAMPAIGN POSTS TO THE API FIRST,
                   THEN SWITCHES TO {appConfig.networkName.toUpperCase()} AND CALLS THE ZUSPROTOCOL CONTRACT.
                 </div>
@@ -1326,7 +1288,7 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
                 <div className="campaign-form-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 28 }}>
                   <div>
                     <div style={{ marginBottom: 28 }}>
-                      <label style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 2, display: "block", marginBottom: 10 }}>
+                      <label style={{ fontFamily: MONO, fontSize: 10, color: MUTED2, letterSpacing: 2, display: "block", marginBottom: 10 }}>
                         NAME
                       </label>
                       <input
@@ -1337,17 +1299,17 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
                         style={{
                           width: "100%",
                           fontFamily: MONO,
-                          fontSize: 12,
+                          fontSize: 13,
                           background: "rgba(0,255,200,.03)",
                           border: `1px solid ${campaignName ? CYAN_DIM : BORDER}`,
                           color: TEXT,
-                          padding: "12px 14px",
+                          padding: "14px 16px",
                           letterSpacing: 2,
                           boxShadow: campaignName ? "0 0 12px rgba(0,255,200,.1)" : "none",
                           transition: "border-color .3s, box-shadow .3s",
                         }}
                       />
-                      <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 1, marginTop: 8, lineHeight: 1.8 }}>
+                      <div style={{ fontFamily: MONO, fontSize: 10, color: MUTED2, letterSpacing: 1, marginTop: 8, lineHeight: 1.8 }}>
                         ENTER THE CAMPAIGN NAME THAT WILL BE STORED IN THE RUST API.
                       </div>
                     </div>
@@ -1355,7 +1317,7 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
                     <div style={{ height: 1, background: BORDER, marginBottom: 24 }} />
 
                     <div style={{ marginBottom: 24 }}>
-                      <label style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 2, display: "block", marginBottom: 16 }}>
+                      <label style={{ fontFamily: MONO, fontSize: 9, color: MUTED2, letterSpacing: 2, display: "block", marginBottom: 16 }}>
                         EMISSION SETTINGS
                       </label>
                       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -1364,7 +1326,7 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
                           { label: "MERKLE VERIFIED", value: merkle, set: setMerkle },
                         ].map((item) => (
                           <div key={item.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <span style={{ fontFamily: MONO, fontSize: 10, color: item.value ? TEXT : MUTED, letterSpacing: 1 }}>
+                            <span style={{ fontFamily: MONO, fontSize: 11, color: item.value ? TEXT : MUTED, letterSpacing: 1 }}>
                               {item.label}
                             </span>
                             <Toggle on={item.value} onChange={item.set} />
@@ -1377,7 +1339,7 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
 
                     <div className="campaign-card-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 24 }}>
                       <div>
-                        <label style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 2, display: "block", marginBottom: 10 }}>
+                        <label style={{ fontFamily: MONO, fontSize: 10, color: MUTED2, letterSpacing: 2, display: "block", marginBottom: 10 }}>
                           PAYOUT_FLOW
                         </label>
                         <input
@@ -1387,20 +1349,20 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
                           style={{
                             width: "100%",
                             fontFamily: MONO,
-                            fontSize: 11,
+                            fontSize: 12,
                             background: "rgba(0,255,200,.03)",
                             border: `1px solid ${BORDER}`,
                             color: TEXT,
-                            padding: "11px 12px",
+                            padding: "13px 14px",
                             letterSpacing: 1,
                           }}
                         />
-                        <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 1, marginTop: 8, lineHeight: 1.6 }}>
+                        <div style={{ fontFamily: MONO, fontSize: 10, color: MUTED2, letterSpacing: 1, marginTop: 8, lineHeight: 1.6 }}>
                           FLOW PER ELIGIBLE CLAIM. THE CONTRACT STILL RECEIVES WEI UNDER THE HOOD.
                         </div>
                       </div>
                       <div>
-                        <label style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 2, display: "block", marginBottom: 10 }}>
+                        <label style={{ fontFamily: MONO, fontSize: 10, color: MUTED2, letterSpacing: 2, display: "block", marginBottom: 10 }}>
                           FUNDING_FLOW
                         </label>
                         <input
@@ -1410,22 +1372,22 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
                           style={{
                             width: "100%",
                             fontFamily: MONO,
-                            fontSize: 11,
+                            fontSize: 12,
                             background: "rgba(0,255,200,.03)",
                             border: `1px solid ${BORDER}`,
                             color: TEXT,
-                            padding: "11px 12px",
+                            padding: "13px 14px",
                             letterSpacing: 1,
                           }}
                         />
-                        <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 1, marginTop: 8, lineHeight: 1.6 }}>
+                        <div style={{ fontFamily: MONO, fontSize: 10, color: MUTED2, letterSpacing: 1, marginTop: 8, lineHeight: 1.6 }}>
                           TOTAL FLOW ATTACHED TO THE CREATE TX ON {appConfig.networkName.toUpperCase()}.
                         </div>
                       </div>
                     </div>
 
                     <div style={{ marginBottom: 16 }}>
-                      <label style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 2, display: "block", marginBottom: 10 }}>
+                      <label style={{ fontFamily: MONO, fontSize: 10, color: MUTED2, letterSpacing: 2, display: "block", marginBottom: 10 }}>
                         RECIPIENTS (ADDRESS,AMOUNT)
                       </label>
                       <textarea
@@ -1437,15 +1399,15 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
                           width: "100%",
                           resize: "vertical",
                           fontFamily: MONO,
-                          fontSize: 10,
+                          fontSize: 11,
                           background: "rgba(0,255,200,.03)",
                           border: `1px solid ${BORDER}`,
                           color: TEXT,
-                          padding: "12px 14px",
+                          padding: "14px 16px",
                           lineHeight: 1.8,
                         }}
                       />
-                      <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 1, marginTop: 8, lineHeight: 1.8 }}>
+                      <div style={{ fontFamily: MONO, fontSize: 10, color: MUTED2, letterSpacing: 1, marginTop: 8, lineHeight: 1.8 }}>
                         ONE RECIPIENT PER LINE. FORMAT: 0xABC...,1
                         <br />
                         CREATOR WALLET: <span style={{ color: wallet.account ? CYAN : MUTED }}>{wallet.account || "CONNECT WALLET"}</span>
@@ -1468,7 +1430,7 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
                             transition: "all .4s",
                           }}
                         />
-                        <span style={{ fontFamily: MONO, fontSize: 8, color: createState.loading || createState.success ? CYAN_DIM : MUTED2, letterSpacing: 1.5, transition: "color .4s" }}>
+                        <span style={{ fontFamily: MONO, fontSize: 10, color: createState.loading || createState.success ? CYAN_DIM : MUTED2, letterSpacing: 1.5, transition: "color .4s" }}>
                           {createState.loading
                             ? "DEPLOYING..."
                             : pendingDeployment
@@ -1512,7 +1474,7 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
               </div>
 
               <div style={{ animation: "fadeUp .6s .5s both" }}>
-                <div style={{ fontFamily: MONO, fontSize: 9, color: CYAN_DIM, letterSpacing: 2, marginBottom: 6 }}>
+                <div style={{ fontFamily: MONO, fontSize: 10, color: CYAN_DIM, letterSpacing: 2, marginBottom: 6 }}>
                   OPERATIONAL STREAM
                 </div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, gap: 12, flexWrap: "wrap" }}>
@@ -1541,7 +1503,7 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
                   ) : null}
                   {campaigns.map((campaign, index) => (
                     <div className="campaign-row" key={campaign.campaign_id}>
-                      <CampaignRow campaign={campaign} delay={index * 120} />
+                      <CampaignRow campaign={campaign} delay={index * 120} onOpen={(campaignId) => onNavigatePage("protocols", campaignId)} />
                     </div>
                   ))}
                 </div>
@@ -1552,26 +1514,25 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
           <footer
             style={{
               borderTop: `1px solid ${BORDER}`,
-              padding: "14px 40px",
+              padding: "24px 20px 30px",
               display: "flex",
-              justifyContent: "space-between",
+              flexDirection: "column",
               alignItems: "center",
+              gap: 10,
+              textAlign: "center",
               fontFamily: MONO,
-              fontSize: 8,
+              fontSize: 11,
               color: MUTED2,
-              letterSpacing: 1,
+              letterSpacing: 1.2,
               background: "rgba(2,13,15,.6)",
-              gap: 16,
-              flexWrap: "wrap",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ color: CYAN }}>ZUS_PROTOCOL_CORE</span>
-              <PixelCat />
             </div>
             <div style={{ textAlign: "center", lineHeight: 2 }}>
               <div>© 2026 ZUS PROTOCOL. ALL RIGHTS RESERVED.</div>
-              <div style={{ color: "#1a5550", fontSize: 7, letterSpacing: 2 }}>
+              <div style={{ color: "#1a5550", fontSize: 9, letterSpacing: 2 }}>
                 API {campaigns.length} · WALLET {shortAddress(wallet.account)}
               </div>
             </div>
