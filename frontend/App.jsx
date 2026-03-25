@@ -936,7 +936,6 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
         </div>
         <div className="footer-copy" style={{ textAlign: "center", lineHeight: 1.8 }}>
           <div>© 2026 ZUS PROTOCOL. ALL RIGHTS RESERVED.</div>
-          <div style={{ color: "#1a5550" }}>CONNECTED: {shortAddress(wallet.account)}</div>
         </div>
         <span className="footer-links">X_FEED · DISCORD_SERVER · GITHUB_REPO · PRIVACY_POLICY</span>
       </footer>
