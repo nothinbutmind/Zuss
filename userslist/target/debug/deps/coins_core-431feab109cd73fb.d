@@ -1,0 +1,12 @@
+/Users/lisa/Documents/coding/Zus/userslist/target/debug/deps/coins_core-431feab109cd73fb.d: /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coins-core-0.8.7/src/lib.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coins-core-0.8.7/src/macros.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coins-core-0.8.7/src/enc.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coins-core-0.8.7/src/hashes.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coins-core-0.8.7/src/prelude.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coins-core-0.8.7/src/ser.rs
+
+/Users/lisa/Documents/coding/Zus/userslist/target/debug/deps/libcoins_core-431feab109cd73fb.rlib: /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coins-core-0.8.7/src/lib.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coins-core-0.8.7/src/macros.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coins-core-0.8.7/src/enc.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coins-core-0.8.7/src/hashes.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coins-core-0.8.7/src/prelude.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coins-core-0.8.7/src/ser.rs
+
+/Users/lisa/Documents/coding/Zus/userslist/target/debug/deps/libcoins_core-431feab109cd73fb.rmeta: /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coins-core-0.8.7/src/lib.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coins-core-0.8.7/src/macros.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coins-core-0.8.7/src/enc.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coins-core-0.8.7/src/hashes.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coins-core-0.8.7/src/prelude.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coins-core-0.8.7/src/ser.rs
+
+/Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coins-core-0.8.7/src/lib.rs:
+/Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coins-core-0.8.7/src/macros.rs:
+/Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coins-core-0.8.7/src/enc.rs:
+/Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coins-core-0.8.7/src/hashes.rs:
+/Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coins-core-0.8.7/src/prelude.rs:
+/Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/coins-core-0.8.7/src/ser.rs:

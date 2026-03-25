@@ -1,0 +1,9 @@
+/Users/lisa/Documents/coding/Zus/userslist/target/debug/deps/enum_ordinalize_derive-fce351353a6e131f.d: /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/lib.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/int128.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/int_wrapper.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/panic.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/variant_type.rs
+
+/Users/lisa/Documents/coding/Zus/userslist/target/debug/deps/libenum_ordinalize_derive-fce351353a6e131f.dylib: /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/lib.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/int128.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/int_wrapper.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/panic.rs /Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/variant_type.rs
+
+/Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/lib.rs:
+/Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/int128.rs:
+/Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/int_wrapper.rs:
+/Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/panic.rs:
+/Users/lisa/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/enum-ordinalize-derive-4.3.2/src/variant_type.rs:

@@ -1,0 +1,22 @@
+[package]
+name = "userslist"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = "0.8.4"
+acir_field = { git = "https://github.com/noir-lang/noir.git", rev = "b33131574388d836341cea9b6380f3b1a8493eb8", package = "acir_field" }
+bn254_blackbox_solver = { git = "https://github.com/noir-lang/noir.git", rev = "b33131574388d836341cea9b6380f3b1a8493eb8", package = "bn254_blackbox_solver", default-features = false }
+dotenvy = "0.15.7"
+ethers-core = "2.0.14"
+ethers-signers = "2.0.14"
+hex = "0.4.3"
+num-bigint = "0.4.6"
+reqwest = { version = "0.12.24", default-features = false, features = ["json", "multipart", "rustls-tls"] }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
+sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "postgres", "uuid", "json", "macros"] }
+thiserror = "2.0.12"
+tokio = { version = "1.44.2", features = ["macros", "rt-multi-thread", "net", "process", "io-util"] }
+tower-http = { version = "0.6.2", features = ["cors"] }
+uuid = { version = "1.18.1", features = ["v4"] }
