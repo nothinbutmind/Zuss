@@ -1,0 +1,7 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = []
+optimizer = true
+# Keep the generated Honk verifier under the EIP-170 runtime size limit.
+optimizer_runs = 50
