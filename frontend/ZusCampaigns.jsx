@@ -1070,7 +1070,11 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
           .campaign-form-grid { grid-template-columns:1fr !important; }
         }
         @media (max-width: 760px) {
+          .campaign-sidebar { display:none !important; }
           .campaign-header { padding:0 18px !important; height:auto !important; min-height:64px; flex-direction:column !important; align-items:flex-start !important; gap:12px !important; padding-top:14px !important; padding-bottom:14px !important; }
+          .campaign-header-nav { width:100% !important; display:grid !important; grid-template-columns:repeat(3, minmax(0, 1fr)) !important; gap:10px !important; }
+          .campaign-header-nav > * { justify-content:center !important; text-align:center !important; padding:0 8px !important; height:48px !important; }
+          .campaign-header > div:last-child { width:100% !important; min-width:0 !important; }
           .campaign-content { padding:24px 18px !important; }
           .campaign-card-grid { grid-template-columns:1fr !important; }
           .campaign-row { flex-direction:column !important; align-items:flex-start !important; }
@@ -1177,7 +1181,7 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
               zIndex: 50,
             }}
           >
-            <div style={{ display: "flex", gap: 0, flexWrap: "wrap" }}>
+            <div className="campaign-header-nav" style={{ display: "flex", gap: 0, flexWrap: "wrap" }}>
               {["Dashboard", "Create Campaign", "Rewards"].map((tab) => {
                 const isActive = tab === "Create Campaign";
 

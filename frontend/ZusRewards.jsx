@@ -341,9 +341,16 @@ export default function App({
           }
           .rewards-header-nav {
             width:100% !important;
-            justify-content:space-between !important;
-            gap:14px !important;
-            flex-wrap:wrap !important;
+            display:grid !important;
+            grid-template-columns:repeat(3, minmax(0, 1fr)) !important;
+            gap:12px !important;
+          }
+          .rewards-header-nav > * {
+            text-align:center !important;
+          }
+          .rewards-header > div:last-child {
+            width:100% !important;
+            min-width:0 !important;
           }
           .rewards-main {
             padding:32px 20px 48px !important;

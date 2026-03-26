@@ -601,15 +601,25 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
           }
           .nav-actions {
             width: 100% !important;
-            justify-content: space-between !important;
-            gap: 10px !important;
-            flex-wrap: wrap !important;
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            align-items: center !important;
+            gap: 12px !important;
           }
           .nav-link {
             font-size: 10px !important;
             letter-spacing: 1.5px !important;
           }
-          .nav-cta, .hero-btn {
+          .nav-cta {
+            grid-column: 1 / -1 !important;
+            width: 100% !important;
+            justify-content: center !important;
+            text-align: center !important;
+          }
+          .nav-launch {
+            display: none !important;
+          }
+          .hero-btn {
             width: 100% !important;
             justify-content: center !important;
             text-align: center !important;
@@ -738,7 +748,7 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
           <Btn className="nav-cta" outline onClick={() => void onConnect()}>
             {wallet.account ? shortAddress(wallet.account) : "CONNECT WALLET"}
           </Btn>
-          <Btn className="nav-cta" onClick={onNavigateStart}>
+          <Btn className="nav-cta nav-launch" onClick={onNavigateStart}>
             LAUNCH APP
           </Btn>
         </div>
