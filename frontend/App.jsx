@@ -552,11 +552,23 @@ function UseCard({ title, desc, delay }) {
 
 function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
   const [scrolled, setScrolled] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 30);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth > 680) {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   return (
@@ -581,6 +593,7 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
           50%     { text-shadow: 0 0 48px rgba(0,255,200,.85),0 0 90px rgba(0,255,200,.4),0 0 130px rgba(0,255,200,.1); }
         }
         button { outline: none; }
+        .mobile-menu-toggle, .mobile-menu-panel { display: none; }
         @media (max-width: 900px) {
           .top-nav { padding: 14px 20px !important; }
           .nav-actions { gap: 12px !important; }
@@ -590,9 +603,9 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
         }
         @media (max-width: 680px) {
           .top-nav {
-            flex-direction: column !important;
-            align-items: flex-start !important;
-            gap: 14px !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            gap: 12px !important;
             padding: 14px 16px !important;
           }
           .nav-brand {
@@ -600,21 +613,19 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
             letter-spacing: 2px !important;
           }
           .nav-actions {
-            width: 100% !important;
-            display: grid !important;
-            grid-template-columns: 1fr 1fr !important;
+            display: none !important;
+          }
+          .mobile-menu-toggle {
+            display: flex !important;
             align-items: center !important;
-            gap: 12px !important;
+            justify-content: center !important;
+          }
+          .mobile-menu-panel {
+            display: grid !important;
           }
           .nav-link {
-            font-size: 10px !important;
-            letter-spacing: 1.5px !important;
-          }
-          .nav-cta {
-            grid-column: 1 / -1 !important;
-            width: 100% !important;
-            justify-content: center !important;
-            text-align: center !important;
+            font-size: 11px !important;
+            letter-spacing: 1.8px !important;
           }
           .nav-launch {
             display: none !important;
@@ -693,6 +704,8 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
+          flexWrap: "wrap",
+          rowGap: 12,
           padding: "14px 40px",
           background: scrolled ? "rgba(2,13,15,.92)" : "transparent",
           backdropFilter: scrolled ? "blur(12px)" : "none",
@@ -721,6 +734,35 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
         >
           ZUS_PROTOCOL
         </span>
+        <button
+          className="mobile-menu-toggle"
+          type="button"
+          onClick={() => setMobileMenuOpen((value) => !value)}
+          aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+          aria-expanded={mobileMenuOpen}
+          style={{
+            width: 46,
+            height: 46,
+            border: "1px solid rgba(0,255,200,.22)",
+            background: mobileMenuOpen ? "rgba(0,255,200,.12)" : "rgba(2,13,15,.88)",
+            cursor: "pointer",
+            flexDirection: "column",
+            gap: 5,
+            padding: 0,
+          }}
+        >
+          {[0, 1, 2].map((line) => (
+            <span
+              key={line}
+              style={{
+                width: 18,
+                height: 1.5,
+                background: "#00ffc8",
+                boxShadow: "0 0 10px rgba(0,255,200,.4)",
+              }}
+            />
+          ))}
+        </button>
         <div className="nav-actions" style={{ display: "flex", gap: 14, alignItems: "center" }}>
           {["PRINCIPLES", "FEATURES"].map((item) => (
             <a
@@ -752,6 +794,50 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
             LAUNCH APP
           </Btn>
         </div>
+        {mobileMenuOpen ? (
+          <div
+            className="mobile-menu-panel"
+            style={{
+              width: "100%",
+              gap: 10,
+              padding: "6px 0 2px",
+            }}
+          >
+            {[
+              { label: "PRINCIPLES", href: "#principles" },
+              { label: "FEATURES", href: "#how-zus-works" },
+            ].map((item) => (
+              <a
+                key={item.label}
+                href={item.href}
+                onClick={() => setMobileMenuOpen(false)}
+                style={{
+                  fontFamily: "'Share Tech Mono',monospace",
+                  fontSize: 12,
+                  letterSpacing: 2,
+                  textDecoration: "none",
+                  color: "#cce8e4",
+                  border: "1px solid rgba(0,255,200,.12)",
+                  background: "rgba(4,20,24,.88)",
+                  padding: "14px 16px",
+                  textAlign: "center",
+                }}
+              >
+                {item.label}
+              </a>
+            ))}
+            <Btn
+              className="mobile-menu-wallet"
+              outline
+              onClick={() => {
+                setMobileMenuOpen(false);
+                void onConnect();
+              }}
+            >
+              {wallet.account ? shortAddress(wallet.account) : "CONNECT WALLET"}
+            </Btn>
+          </div>
+        ) : null}
       </nav>
 
       <section

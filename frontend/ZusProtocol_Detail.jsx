@@ -99,10 +99,11 @@ function NavLink({ label, active, onClick }) {
   );
 }
 
-function WalletBtn({ wallet, onConnect }) {
+function WalletBtn({ wallet, onConnect, className, style }) {
   const [hov, setHov] = useState(false);
   return (
     <div
+      className={className}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       onClick={() => void onConnect()}
@@ -121,6 +122,7 @@ function WalletBtn({ wallet, onConnect }) {
         transition: "all .25s",
         whiteSpace: "nowrap",
         minWidth: 172,
+        ...style,
       }}
       dangerouslySetInnerHTML={{ __html: walletLabel(wallet.account, wallet.connecting) }}
     />
@@ -443,6 +445,7 @@ export default function App({
 }) {
   const [campaignData, setCampaignData] = useState(campaign);
   const [campaignLoading, setCampaignLoading] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [campaignError, setCampaignError] = useState("");
   const [claimAddress, setClaimAddress] = useState("");
   const [claimState, setClaimState] = useState({
@@ -450,6 +453,17 @@ export default function App({
     error: "",
     payload: null,
   });
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth > 760) {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   useEffect(() => {
     if (campaign && campaign.campaign_id === campaignId) {
@@ -574,22 +588,35 @@ export default function App({
           70%  { transform:scale(1.15); }
           100% { transform:scale(1); opacity:1; }
         }
+        .detail-menu-toggle, .detail-menu-panel { display:none; }
         @media (max-width: 980px) {
           .detail-body { grid-template-columns:1fr !important; }
           .detail-main { padding:24px 20px !important; }
           .detail-aside { min-height:auto !important; }
+        }
+        @media (max-width: 760px) {
           .detail-header {
             height:auto !important;
-            padding:18px 20px !important;
-            flex-direction:column !important;
-            align-items:flex-start !important;
-            gap:14px !important;
-          }
-          .detail-header-nav {
-            width:100% !important;
-            justify-content:space-between !important;
-            gap:14px !important;
+            min-height:64px !important;
+            padding:14px 18px !important;
             flex-wrap:wrap !important;
+            align-items:center !important;
+            gap:12px !important;
+          }
+          .detail-header-nav, .detail-wallet {
+            display:none !important;
+          }
+          .detail-menu-toggle {
+            display:flex !important;
+            align-items:center !important;
+            justify-content:center !important;
+            margin-left:auto !important;
+          }
+          .detail-menu-panel {
+            display:grid !important;
+            width:100% !important;
+            gap:10px !important;
+            padding-top:8px !important;
           }
         }
       `}</style>
@@ -655,7 +682,68 @@ export default function App({
               />
             ))}
           </div>
-          <WalletBtn wallet={wallet} onConnect={onConnect} />
+          <button
+            className="detail-menu-toggle"
+            type="button"
+            onClick={() => setMobileMenuOpen((value) => !value)}
+            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={mobileMenuOpen}
+            style={{
+              width: 46,
+              height: 46,
+              border: `1px solid ${CYAN}`,
+              background: mobileMenuOpen ? "rgba(0,255,200,.12)" : "rgba(2,13,15,.88)",
+              cursor: "pointer",
+              flexDirection: "column",
+              gap: 5,
+              padding: 0,
+            }}
+          >
+            {[0, 1, 2].map((line) => (
+              <span key={line} style={{ width: 18, height: 1.5, background: CYAN }} />
+            ))}
+          </button>
+          <WalletBtn className="detail-wallet" wallet={wallet} onConnect={onConnect} />
+          {mobileMenuOpen ? (
+            <div className="detail-menu-panel" style={{ width: "100%" }}>
+              {[
+                { label: "Home", action: onNavigateHome },
+                { label: "Dashboard", action: () => onNavigatePage("dashboard") },
+                { label: "Create Campaign", action: () => onNavigatePage("campaigns") },
+                { label: "Rewards", action: () => onNavigatePage("rewards") },
+              ].map((item) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    item.action();
+                  }}
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 12,
+                    letterSpacing: 2,
+                    color: TEXT,
+                    border: `1px solid ${BORDER}`,
+                    background: "rgba(4,20,24,.88)",
+                    padding: "14px 16px",
+                    textAlign: "center",
+                    cursor: "pointer",
+                  }}
+                >
+                  {item.label}
+                </button>
+              ))}
+              <WalletBtn
+                wallet={wallet}
+                onConnect={() => {
+                  setMobileMenuOpen(false);
+                  return onConnect();
+                }}
+                style={{ width: "100%", minWidth: 0 }}
+              />
+            </div>
+          ) : null}
         </header>
 
         <div className="detail-body" style={{ flex: 1, display: "grid", gridTemplateColumns: "380px 1fr", position: "relative", zIndex: 1 }}>

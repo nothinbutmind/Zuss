@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const CYAN = "#00ffc8";
 const CYAN_DIM = "#00ddb0";
@@ -54,11 +54,12 @@ function NavLink({ label, active, onClick }) {
   );
 }
 
-function WalletBtn({ wallet, onConnect }) {
+function WalletBtn({ wallet, onConnect, className, style }) {
   const [hovered, setHovered] = useState(false);
 
   return (
     <div
+      className={className}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={() => void onConnect()}
@@ -77,6 +78,7 @@ function WalletBtn({ wallet, onConnect }) {
         background: hovered ? CYAN : "transparent",
         boxShadow: hovered ? "0 0 24px rgba(0,255,200,.45)" : "0 0 12px rgba(0,255,200,.12)",
         transition: "all .25s",
+        ...style,
       }}
       dangerouslySetInnerHTML={{ __html: walletLabel(wallet.account, wallet.connecting) }}
     />
@@ -193,6 +195,7 @@ export default function ZusDashboard({
   campaignsError,
   onOpenCampaign,
 }) {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const uniqueCreators = new Set(campaigns.map((campaign) => campaign.campaign_creator_address)).size;
   const recipientTotal = campaigns.reduce(
     (sum, campaign) => sum + Number(campaign.leaf_count || 0),
@@ -200,38 +203,55 @@ export default function ZusDashboard({
   );
   const recentCampaigns = campaigns.slice(0, 3);
 
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth > 760) {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
         *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
         body { background:${BG}; margin:0; font-family:${MONO}; overflow-x:hidden; }
+        .dashboard-menu-toggle, .dashboard-menu-panel { display:none; }
         @media (max-width: 920px) {
-          .dashboard-header {
-            height:auto !important;
-            padding:18px 20px !important;
-            flex-direction:column !important;
-            align-items:flex-start !important;
-            gap:14px !important;
-          }
-          .dashboard-nav {
-            width:100% !important;
-            display:grid !important;
-            grid-template-columns:repeat(3, minmax(0, 1fr)) !important;
-            gap:12px !important;
-          }
-          .dashboard-nav > * {
-            text-align:center !important;
-          }
-          .dashboard-header > div:last-child {
-            width:100% !important;
-            min-width:0 !important;
-          }
           .dashboard-main {
             padding:28px 20px 48px !important;
           }
           .dashboard-grid, .dashboard-lower {
             grid-template-columns:1fr !important;
+          }
+        }
+        @media (max-width: 760px) {
+          .dashboard-header {
+            height:auto !important;
+            min-height:68px !important;
+            padding:14px 18px !important;
+            flex-wrap:wrap !important;
+            align-items:center !important;
+            gap:12px !important;
+          }
+          .dashboard-nav, .dashboard-wallet {
+            display:none !important;
+          }
+          .dashboard-menu-toggle {
+            display:flex !important;
+            align-items:center !important;
+            justify-content:center !important;
+            margin-left:auto !important;
+          }
+          .dashboard-menu-panel {
+            display:grid !important;
+            width:100% !important;
+            gap:10px !important;
+            padding-top:8px !important;
           }
         }
       `}</style>
@@ -284,7 +304,69 @@ export default function ZusDashboard({
             <NavLink label="Rewards" active={false} onClick={() => onNavigatePage("rewards")} />
           </div>
 
-          <WalletBtn wallet={wallet} onConnect={onConnect} />
+          <button
+            className="dashboard-menu-toggle"
+            type="button"
+            onClick={() => setMobileMenuOpen((value) => !value)}
+            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={mobileMenuOpen}
+            style={{
+              width: 46,
+              height: 46,
+              border: `1px solid ${CYAN}`,
+              background: mobileMenuOpen ? "rgba(0,255,200,.12)" : "rgba(2,13,15,.88)",
+              cursor: "pointer",
+              flexDirection: "column",
+              gap: 5,
+              padding: 0,
+            }}
+          >
+            {[0, 1, 2].map((line) => (
+              <span key={line} style={{ width: 18, height: 1.5, background: CYAN }} />
+            ))}
+          </button>
+
+          <WalletBtn className="dashboard-wallet" wallet={wallet} onConnect={onConnect} />
+          {mobileMenuOpen ? (
+            <div className="dashboard-menu-panel" style={{ width: "100%" }}>
+              {[
+                { label: "Home", action: onNavigateHome },
+                { label: "Dashboard", action: () => onNavigatePage("dashboard") },
+                { label: "Create Campaign", action: () => onNavigatePage("campaigns") },
+                { label: "Rewards", action: () => onNavigatePage("rewards") },
+              ].map((item) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    item.action();
+                  }}
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 12,
+                    letterSpacing: 2,
+                    color: TEXT,
+                    border: `1px solid ${BORDER}`,
+                    background: "rgba(4,20,24,.88)",
+                    padding: "14px 16px",
+                    textAlign: "center",
+                    cursor: "pointer",
+                  }}
+                >
+                  {item.label}
+                </button>
+              ))}
+              <WalletBtn
+                wallet={wallet}
+                onConnect={() => {
+                  setMobileMenuOpen(false);
+                  return onConnect();
+                }}
+                style={{ width: "100%", minWidth: 0 }}
+              />
+            </div>
+          ) : null}
         </header>
 
         <main className="dashboard-main" style={{ flex: 1, padding: "42px 40px 60px", position: "relative", zIndex: 1 }}>

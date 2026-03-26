@@ -90,10 +90,11 @@ function walletLabel(account, connecting) {
   return `${account.slice(0, 6)}...${account.slice(-4)}`;
 }
 
-function NavBtn({ wallet, onConnect }) {
+function NavBtn({ wallet, onConnect, className, style }) {
   const [hov, setHov] = useState(false);
   return (
     <div
+      className={className}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       onClick={() => void onConnect()}
@@ -105,6 +106,7 @@ function NavBtn({ wallet, onConnect }) {
         background: hov ? CYAN : "transparent",
         boxShadow: hov ? `0 0 20px rgba(0,255,200,.5)` : `0 0 10px rgba(0,255,200,.15)`,
         transition:"all .25s", lineHeight:1.2, textAlign:"center", whiteSpace:"nowrap", minWidth:172,
+        ...style,
       }}
       dangerouslySetInnerHTML={{ __html: walletLabel(wallet.account, wallet.connecting) }}
     />
@@ -278,6 +280,7 @@ export default function App({
   onOpenCampaign,
 }) {
   const [tab, setTab] = useState("ALL_CAMPAIGNS");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const normalizedCampaigns = campaigns.map((campaign) => {
     const egress = Number(((Number(campaign.leaf_count) / TREE_MAX_LEAVES) * 100).toFixed(1));
 
@@ -292,6 +295,17 @@ export default function App({
       filter: "all",
     };
   });
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth > 760) {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   const filtered = normalizedCampaigns.filter((campaign) => {
     if (tab === "ALL_CAMPAIGNS") return true;
@@ -331,29 +345,35 @@ export default function App({
           0%,100% { border-color: rgba(0,255,200,.08); }
           50%     { border-color: rgba(0,255,200,.18); }
         }
+        .rewards-menu-toggle, .rewards-menu-panel { display:none; }
         @media (max-width: 920px) {
-          .rewards-header {
-            height:auto !important;
-            padding:18px 20px !important;
-            flex-direction:column !important;
-            align-items:flex-start !important;
-            gap:14px !important;
-          }
-          .rewards-header-nav {
-            width:100% !important;
-            display:grid !important;
-            grid-template-columns:repeat(3, minmax(0, 1fr)) !important;
-            gap:12px !important;
-          }
-          .rewards-header-nav > * {
-            text-align:center !important;
-          }
-          .rewards-header > div:last-child {
-            width:100% !important;
-            min-width:0 !important;
-          }
           .rewards-main {
             padding:32px 20px 48px !important;
+          }
+        }
+        @media (max-width: 760px) {
+          .rewards-header {
+            height:auto !important;
+            min-height:64px !important;
+            padding:14px 18px !important;
+            flex-wrap:wrap !important;
+            align-items:center !important;
+            gap:12px !important;
+          }
+          .rewards-header-nav, .rewards-wallet {
+            display:none !important;
+          }
+          .rewards-menu-toggle {
+            display:flex !important;
+            align-items:center !important;
+            justify-content:center !important;
+            margin-left:auto !important;
+          }
+          .rewards-menu-panel {
+            display:grid !important;
+            width:100% !important;
+            gap:10px !important;
+            padding-top:8px !important;
           }
         }
         @media (max-width: 1200px) {
@@ -414,7 +434,69 @@ export default function App({
             ))}
           </div>
 
-          <NavBtn wallet={wallet} onConnect={onConnect} />
+          <button
+            className="rewards-menu-toggle"
+            type="button"
+            onClick={() => setMobileMenuOpen((value) => !value)}
+            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={mobileMenuOpen}
+            style={{
+              width:46,
+              height:46,
+              border:`1px solid ${CYAN}`,
+              background: mobileMenuOpen ? "rgba(0,255,200,.12)" : "rgba(2,13,15,.88)",
+              cursor:"pointer",
+              flexDirection:"column",
+              gap:5,
+              padding:0,
+            }}
+          >
+            {[0,1,2].map((line) => (
+              <span key={line} style={{ width:18, height:1.5, background:CYAN }} />
+            ))}
+          </button>
+
+          <NavBtn className="rewards-wallet" wallet={wallet} onConnect={onConnect} />
+          {mobileMenuOpen ? (
+            <div className="rewards-menu-panel" style={{ width:"100%" }}>
+              {[
+                { label: "Home", action: onNavigateHome },
+                { label: "Dashboard", action: () => onNavigatePage("dashboard") },
+                { label: "Create Campaign", action: () => onNavigatePage("campaigns") },
+                { label: "Rewards", action: () => onNavigatePage("rewards") },
+              ].map((item) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    item.action();
+                  }}
+                  style={{
+                    fontFamily:MONO,
+                    fontSize:12,
+                    letterSpacing:2,
+                    color:TEXT,
+                    border:`1px solid ${BORDER}`,
+                    background:"rgba(4,20,24,.88)",
+                    padding:"14px 16px",
+                    textAlign:"center",
+                    cursor:"pointer",
+                  }}
+                >
+                  {item.label}
+                </button>
+              ))}
+              <NavBtn
+                wallet={wallet}
+                onConnect={() => {
+                  setMobileMenuOpen(false);
+                  return onConnect();
+                }}
+                style={{ width:"100%", minWidth:0 }}
+              />
+            </div>
+          ) : null}
         </header>
 
         {/* ── MAIN ── */}

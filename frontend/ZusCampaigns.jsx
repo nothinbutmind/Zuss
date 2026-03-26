@@ -746,6 +746,7 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
   const [instant, setInstant] = useState(true);
   const [merkle, setMerkle] = useState(true);
   const [walletHov, setWalletHov] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [payoutAvax, setPayoutAvax] = useState(appConfig.defaultPayoutAvax);
   const [fundingAvax, setFundingAvax] = useState(appConfig.defaultFundingAvax);
   const [recipientText, setRecipientText] = useState(SAMPLE_RECIPIENTS);
@@ -769,6 +770,17 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
       return [];
     }
   })();
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth > 760) {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1063,6 +1075,7 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
           60%  { transform:scale(1.04); opacity:1; }
           100% { transform:scale(1); }
         }
+        .campaign-menu-toggle, .campaign-menu-panel, .campaign-mobile-brand { display:none; }
         @media (max-width: 1080px) {
           .campaign-shell { flex-direction:column !important; }
           .campaign-sidebar { width:100% !important; }
@@ -1071,10 +1084,11 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
         }
         @media (max-width: 760px) {
           .campaign-sidebar { display:none !important; }
-          .campaign-header { padding:0 18px !important; height:auto !important; min-height:64px; flex-direction:column !important; align-items:flex-start !important; gap:12px !important; padding-top:14px !important; padding-bottom:14px !important; }
-          .campaign-header-nav { width:100% !important; display:grid !important; grid-template-columns:repeat(3, minmax(0, 1fr)) !important; gap:10px !important; }
-          .campaign-header-nav > * { justify-content:center !important; text-align:center !important; padding:0 8px !important; height:48px !important; }
-          .campaign-header > div:last-child { width:100% !important; min-width:0 !important; }
+          .campaign-header { padding:14px 18px !important; height:auto !important; min-height:64px; flex-wrap:wrap !important; align-items:center !important; gap:12px !important; }
+          .campaign-header-nav, .campaign-wallet { display:none !important; }
+          .campaign-mobile-brand { display:block !important; font-family:${MONO}; font-size:15px !important; color:${CYAN}; letter-spacing:3px !important; text-shadow:0 0 14px rgba(0,255,200,.5); cursor:pointer; }
+          .campaign-menu-toggle { display:flex !important; align-items:center !important; justify-content:center !important; margin-left:auto !important; }
+          .campaign-menu-panel { display:grid !important; width:100% !important; gap:10px !important; padding-top:8px !important; }
           .campaign-content { padding:24px 18px !important; }
           .campaign-card-grid { grid-template-columns:1fr !important; }
           .campaign-row { flex-direction:column !important; align-items:flex-start !important; }
@@ -1181,6 +1195,9 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
               zIndex: 50,
             }}
           >
+            <span className="campaign-mobile-brand" onClick={onNavigateHome}>
+              ZUS_PROTOCOL
+            </span>
             <div className="campaign-header-nav" style={{ display: "flex", gap: 0, flexWrap: "wrap" }}>
               {["Dashboard", "Create Campaign", "Rewards"].map((tab) => {
                 const isActive = tab === "Create Campaign";
@@ -1219,7 +1236,30 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
               })}
             </div>
 
+            <button
+              className="campaign-menu-toggle"
+              type="button"
+              onClick={() => setMobileMenuOpen((value) => !value)}
+              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+              aria-expanded={mobileMenuOpen}
+              style={{
+                width: 46,
+                height: 46,
+                border: `1px solid ${CYAN}` ,
+                background: mobileMenuOpen ? "rgba(0,255,200,.12)" : "rgba(2,13,15,.88)",
+                cursor: "pointer",
+                flexDirection: "column",
+                gap: 5,
+                padding: 0,
+              }}
+            >
+              {[0, 1, 2].map((line) => (
+                <span key={line} style={{ width: 18, height: 1.5, background: CYAN }} />
+              ))}
+            </button>
+
             <div
+              className="campaign-wallet"
               onMouseEnter={() => setWalletHov(true)}
               onMouseLeave={() => setWalletHov(false)}
               onClick={() => void onConnect()}
@@ -1241,6 +1281,57 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
               }}
               dangerouslySetInnerHTML={{ __html: walletLabel(wallet.account, wallet.connecting) }}
             />
+            {mobileMenuOpen ? (
+              <div className="campaign-menu-panel" style={{ width: "100%" }}>
+                {[
+                  { label: "Home", action: onNavigateHome },
+                  { label: "Dashboard", action: () => onNavigatePage("dashboard") },
+                  { label: "Create Campaign", action: () => onNavigatePage("campaigns") },
+                  { label: "Rewards", action: () => onNavigatePage("rewards") },
+                ].map((item) => (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      item.action();
+                    }}
+                    style={{
+                      fontFamily: MONO,
+                      fontSize: 12,
+                      letterSpacing: 2,
+                      color: TEXT,
+                      border: `1px solid ${BORDER}`,
+                      background: "rgba(4,20,24,.88)",
+                      padding: "14px 16px",
+                      textAlign: "center",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    void onConnect();
+                  }}
+                  style={{
+                    fontFamily: MONO,
+                    fontSize: 11,
+                    letterSpacing: 2,
+                    color: CYAN,
+                    border: `1px solid ${CYAN}`,
+                    padding: "14px 16px",
+                    cursor: "pointer",
+                    background: "transparent",
+                    textAlign: "center",
+                  }}
+                  dangerouslySetInnerHTML={{ __html: walletLabel(wallet.account, wallet.connecting) }}
+                />
+              </div>
+            ) : null}
           </header>
 
           <main className="campaign-content" style={{ flex: 1, padding: "36px 40px", overflowY: "auto" }}>
