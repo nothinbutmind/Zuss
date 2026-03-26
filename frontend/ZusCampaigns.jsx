@@ -34,6 +34,8 @@ const EMPTY_CREATE_STATE = {
   apiCampaign: null,
 };
 const SAMPLE_RECIPIENTS = "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266,1";
+const SAMPLE_RECIPIENTS_CSV = `address,amount
+0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266,1`;
 const flowEvmChain = {
   id: appConfig.chainId,
   name: appConfig.networkName,
@@ -115,10 +117,27 @@ async function readJson(response) {
 }
 
 function parseRecipients(text) {
-  const lines = text
+  const rawLines = text
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
+
+  if (rawLines.length === 0) {
+    throw new Error("Add at least one recipient row using address,amount.");
+  }
+
+  const lines = rawLines.filter((line, index) => {
+    const parts = line
+      .split(",")
+      .map((part) => part.trim().replace(/^"|"$/g, ""))
+      .filter(Boolean);
+
+    if (index === 0 && parts.length >= 2) {
+      return !(parts[0].toLowerCase() === "address" && parts[1].toLowerCase() === "amount");
+    }
+
+    return true;
+  });
 
   if (lines.length === 0) {
     throw new Error("Add at least one recipient row using address,amount.");
@@ -126,8 +145,8 @@ function parseRecipients(text) {
 
   return lines.map((line, index) => {
     const parts = line
-      .split(/[,\s]+/)
-      .map((part) => part.trim())
+      .split(",")
+      .map((part) => part.trim().replace(/^"|"$/g, ""))
       .filter(Boolean);
 
     if (parts.length !== 2) {
@@ -148,6 +167,10 @@ function parseRecipients(text) {
       amount,
     };
   });
+}
+
+function recipientsToText(recipients) {
+  return recipients.map((recipient) => `${recipient.leaf_address},${recipient.amount}`).join("\n");
 }
 
 function parseAvaxAmount(value, label) {
@@ -756,6 +779,8 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [createState, setCreateState] = useState(EMPTY_CREATE_STATE);
   const [pendingDeployment, setPendingDeployment] = useState(null);
+  const [recipientUploadName, setRecipientUploadName] = useState("");
+  const recipientFileInputRef = useRef(null);
 
   const navItems = [
     { icon: "▦", label: "DASHBOARD", route: "dashboard" },
@@ -770,6 +795,36 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
       return [];
     }
   })();
+
+  const handleRecipientCsvUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const parsed = parseRecipients(text);
+      setRecipientText(recipientsToText(parsed));
+      setRecipientUploadName(file.name);
+      setCreateState((current) => ({ ...current, error: "" }));
+    } catch (error) {
+      setCreateState((current) => ({ ...current, error: parseErrorMessage(error) }));
+      setRecipientUploadName("");
+    } finally {
+      event.target.value = "";
+    }
+  };
+
+  const handleRecipientTemplateDownload = () => {
+    const blob = new Blob([SAMPLE_RECIPIENTS_CSV], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "zus_recipients_template.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   useEffect(() => {
     const handleResize = () => {
@@ -1487,9 +1542,25 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
                       <label style={{ fontFamily: MONO, fontSize: 10, color: MUTED2, letterSpacing: 2, display: "block", marginBottom: 10 }}>
                         RECIPIENTS (ADDRESS,AMOUNT)
                       </label>
+                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+                        <Btn small outline onClick={handleRecipientTemplateDownload}>DOWNLOAD CSV TEMPLATE</Btn>
+                        <Btn small onClick={() => recipientFileInputRef.current?.click()}>UPLOAD CSV</Btn>
+                        <input
+                          ref={recipientFileInputRef}
+                          type="file"
+                          accept=".csv,text/csv"
+                          onChange={(event) => {
+                            void handleRecipientCsvUpload(event);
+                          }}
+                          style={{ display: "none" }}
+                        />
+                      </div>
                       <textarea
                         value={recipientText}
-                        onChange={(event) => setRecipientText(event.target.value)}
+                        onChange={(event) => {
+                          setRecipientText(event.target.value);
+                          setRecipientUploadName("");
+                        }}
                         placeholder={SAMPLE_RECIPIENTS}
                         rows={6}
                         style={{
@@ -1505,7 +1576,12 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
                         }}
                       />
                       <div style={{ fontFamily: MONO, fontSize: 10, color: MUTED2, letterSpacing: 1, marginTop: 8, lineHeight: 1.8 }}>
-                        ONE RECIPIENT PER LINE. FORMAT: 0xABC...,1
+                        ONE RECIPIENT PER LINE OR UPLOAD A CSV WITH: address,amount
+                        <br />
+                        CSV TEMPLATE HEADER: <span style={{ color: CYAN }}>address,amount</span>
+                        {recipientUploadName ? (
+                          <><br />LAST CSV: <span style={{ color: CYAN }}>{recipientUploadName}</span></>
+                        ) : null}
                         <br />
                         CREATOR WALLET: <span style={{ color: wallet.account ? CYAN : MUTED }}>{wallet.account || "CONNECT WALLET"}</span>
                         <br />
