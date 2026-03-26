@@ -605,6 +605,7 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
           .top-nav {
             align-items: center !important;
             justify-content: space-between !important;
+            flex-wrap: nowrap !important;
             gap: 12px !important;
             padding: 14px 16px !important;
           }
@@ -622,6 +623,15 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
           }
           .mobile-menu-panel {
             display: grid !important;
+            position: absolute !important;
+            top: calc(100% + 10px) !important;
+            left: 16px !important;
+            right: 16px !important;
+            padding: 12px !important;
+            background: rgba(2,13,15,.94) !important;
+            border: 1px solid rgba(0,255,200,.14) !important;
+            box-shadow: 0 20px 42px rgba(0,0,0,.36) !important;
+            backdrop-filter: blur(14px) !important;
           }
           .nav-link {
             font-size: 11px !important;
@@ -798,9 +808,7 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
           <div
             className="mobile-menu-panel"
             style={{
-              width: "100%",
               gap: 10,
-              padding: "6px 0 2px",
             }}
           >
             {[
