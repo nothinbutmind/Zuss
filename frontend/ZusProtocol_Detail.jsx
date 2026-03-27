@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
-import { isAddress } from "viem";
-import { resolveApiUrl } from "./config.js";
+import { appConfig, resolveApiUrl } from "./config.js";
+import {
+  isValidStarknetAddress,
+  normalizeStarknetAddress,
+  prepareRelayedClaim,
+} from "./starknet.js";
 
 const CYAN = "#00ffc8";
 const CYAN_DIM = "#00ddb0";
@@ -318,7 +322,20 @@ function Scanline() {
   );
 }
 
-function ClaimCheckPanel({ campaign, claimAddress, setClaimAddress, claimState, onSubmit }) {
+function ClaimCheckPanel({
+  campaign,
+  wallet,
+  claimAddress,
+  setClaimAddress,
+  claimState,
+  relayState,
+  onSubmit,
+  onRelayClaim,
+}) {
+  const explorerUrl = relayState.txHash
+    ? `${appConfig.explorerBaseUrl.replace(/\/$/, "")}/${relayState.txHash}`
+    : "";
+
   return (
     <div style={{ animation: "fadeUp .6s .8s both" }}>
       <div
@@ -428,6 +445,52 @@ function ClaimCheckPanel({ campaign, claimAddress, setClaimAddress, claimState, 
           <div style={{ marginTop: 12, fontFamily: MONO, fontSize: 9, color: MUTED, lineHeight: 1.8 }}>
             CLAIM PAYLOAD IS AVAILABLE FROM <code>{campaign.campaign_id}</code>. YOU CAN NOW CONTINUE WITH THE FULL CLAIM FLOW.
           </div>
+
+          <div style={{ marginTop: 16, borderTop: `1px solid ${BORDER}`, paddingTop: 16 }}>
+            <div style={{ fontFamily: MONO, fontSize: 9, color: MUTED2, letterSpacing: 2, marginBottom: 8 }}>
+              PRIVATE_RELAY_SUBMISSION
+            </div>
+            <div style={{ fontFamily: MONO, fontSize: 10, color: MUTED, lineHeight: 1.8, marginBottom: 14 }}>
+              SIGN OFF-CHAIN WITH THE ELIGIBLE WALLET, GENERATE THE CLAIM WITNESS LOCALLY, AND LET THE RELAYER SUBMIT THE ONCHAIN TRANSACTION FROM ITS OWN ACCOUNT.
+            </div>
+            <button
+              onClick={onRelayClaim}
+              disabled={relayState.loading}
+              style={{
+                fontFamily: MONO,
+                fontSize: 11,
+                letterSpacing: 3,
+                color: relayState.loading ? BG : CYAN,
+                border: `1px solid ${CYAN}`,
+                padding: "14px 26px",
+                cursor: relayState.loading ? "progress" : "pointer",
+                background: relayState.loading ? CYAN : "transparent",
+                boxShadow: "0 0 12px rgba(0,255,200,.15)",
+                transition: "all .25s",
+              }}
+            >
+              {relayState.loading ? "RELAYING" : wallet.account ? "RELAY CLAIM" : "CONNECT TO RELAY"}
+            </button>
+
+            {relayState.error ? (
+              <div style={{ marginTop: 12, fontFamily: MONO, fontSize: 10, color: "#d2a0a0", lineHeight: 1.8 }}>
+                {relayState.error}
+              </div>
+            ) : null}
+
+            {relayState.txHash ? (
+              <div style={{ marginTop: 12, fontFamily: MONO, fontSize: 10, color: CYAN, lineHeight: 1.8 }}>
+                RELAYER_TX:{" "}
+                {explorerUrl ? (
+                  <a href={explorerUrl} target="_blank" rel="noreferrer" style={{ color: CYAN }}>
+                    {relayState.txHash}
+                  </a>
+                ) : (
+                  relayState.txHash
+                )}
+              </div>
+            ) : null}
+          </div>
         </div>
       ) : null}
     </div>
@@ -452,6 +515,11 @@ export default function App({
     loading: false,
     error: "",
     payload: null,
+  });
+  const [relayState, setRelayState] = useState({
+    loading: false,
+    error: "",
+    txHash: "",
   });
 
   useEffect(() => {
@@ -517,14 +585,16 @@ export default function App({
       return;
     }
 
-    if (!isAddress(claimAddress.trim())) {
+    if (!isValidStarknetAddress(claimAddress.trim())) {
       setClaimState({
         loading: false,
-        error: "Enter a valid EVM address to check this campaign.",
+        error: "Enter a valid wallet address to check this campaign.",
         payload: null,
       });
       return;
     }
+
+    const normalizedAddress = normalizeStarknetAddress(claimAddress.trim());
 
     setClaimState({
       loading: true,
@@ -536,7 +606,7 @@ export default function App({
       const payload = await readJson(
         await fetch(
           resolveApiUrl(
-            `/campaigns/${campaignData.campaign_id}/claim/${encodeURIComponent(claimAddress.trim())}`,
+            `/campaigns/${campaignData.campaign_id}/claim/${encodeURIComponent(normalizedAddress)}`,
           ),
         ),
       );
@@ -546,11 +616,78 @@ export default function App({
         error: "",
         payload,
       });
+      setRelayState({
+        loading: false,
+        error: "",
+        txHash: "",
+      });
     } catch (error) {
       setClaimState({
         loading: false,
         error: parseErrorMessage(error),
         payload: null,
+      });
+    }
+  };
+
+  const handleRelayClaim = async () => {
+    if (!claimState.payload) {
+      return;
+    }
+
+    if (!wallet.account || !wallet.walletAccount) {
+      setRelayState({
+        loading: false,
+        error: "Connect the eligible wallet before relaying a claim.",
+        txHash: "",
+      });
+      return;
+    }
+
+    const connectedAddress = normalizeStarknetAddress(wallet.account);
+    if (connectedAddress !== normalizeStarknetAddress(claimState.payload.leaf_address)) {
+      setRelayState({
+        loading: false,
+        error: "Connect the same eligible wallet address that you checked against this campaign.",
+        txHash: "",
+      });
+      return;
+    }
+
+    setRelayState({
+      loading: true,
+      error: "",
+      txHash: "",
+    });
+
+    try {
+      const requestBody = await prepareRelayedClaim({
+        walletAccount: wallet.walletAccount,
+        chainId: wallet.chainId || appConfig.chainId,
+        claimPayload: claimState.payload,
+        campaignMessage: appConfig.campaignMessage,
+      });
+
+      const response = await readJson(
+        await fetch(`${appConfig.relayerUrl.replace(/\/$/, "")}/relay-claim`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        }),
+      );
+
+      setRelayState({
+        loading: false,
+        error: "",
+        txHash: response.transaction_hash || response.txHash || "",
+      });
+    } catch (error) {
+      setRelayState({
+        loading: false,
+        error: parseErrorMessage(error),
+        txHash: "",
       });
     }
   };
@@ -932,11 +1069,16 @@ export default function App({
 
                 <ClaimCheckPanel
                   campaign={campaignData}
+                  wallet={wallet}
                   claimAddress={claimAddress}
                   setClaimAddress={setClaimAddress}
                   claimState={claimState}
+                  relayState={relayState}
                   onSubmit={() => {
                     void handleCheckEligibility();
+                  }}
+                  onRelayClaim={() => {
+                    void handleRelayClaim();
                   }}
                 />
               </>

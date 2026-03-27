@@ -1,12 +1,12 @@
-import { formatEther, isAddress } from "viem";
+import { formatTokenAmount, isValidStarknetAddress } from "./starknet.js";
 
 const DEFAULT_API_BASE_URL = "http://127.0.0.1:3000";
-const DEFAULT_RPC_URL = "https://testnet.evm.nodes.onflow.org";
-const DEFAULT_EXPLORER_BASE_URL = "https://evm-testnet.flowscan.io/tx/";
-const DEFAULT_CHAIN_ID = 545;
-const DEFAULT_CHAIN_HEX_ID = "0x221";
-const DEFAULT_NETWORK_NAME = "Flow EVM Testnet";
-const DEFAULT_EXPLORER_SITE_URL = "https://evm-testnet.flowscan.io/";
+const DEFAULT_RELAYER_URL = "http://127.0.0.1:4000";
+const DEFAULT_RPC_URL = "https://starknet-sepolia.public.blastapi.io/rpc/v0_8";
+const DEFAULT_EXPLORER_BASE_URL = "https://sepolia.starkscan.co/tx/";
+const DEFAULT_CHAIN_ID = "SN_SEPOLIA";
+const DEFAULT_NETWORK_NAME = "Starknet Sepolia";
+const DEFAULT_EXPLORER_SITE_URL = "https://sepolia.starkscan.co/";
 
 function cleanValue(value, fallback = "") {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
@@ -21,7 +21,7 @@ function defaultReadableAmount(readableEnv, weiEnv, fallback) {
   const wei = cleanValue(weiEnv);
   if (wei && /^[0-9]+$/.test(wei)) {
     try {
-      return formatEther(BigInt(wei));
+      return formatTokenAmount(BigInt(wei));
     } catch {
       return fallback;
     }
@@ -32,9 +32,14 @@ function defaultReadableAmount(readableEnv, weiEnv, fallback) {
 
 export const appConfig = {
   apiBaseUrl: cleanValue(import.meta.env.VITE_API_BASE_URL, DEFAULT_API_BASE_URL),
+  relayerUrl: cleanValue(import.meta.env.VITE_ZUS_RELAYER_URL, DEFAULT_RELAYER_URL),
   rpcUrl: cleanValue(import.meta.env.VITE_RPC_URL, DEFAULT_RPC_URL),
   protocolAddress: cleanValue(import.meta.env.VITE_ZUS_PROTOCOL_ADDRESS),
-  verifierAddress: cleanValue(import.meta.env.VITE_ZUS_VERIFIER_ADDRESS),
+  verifierAddress: cleanValue(
+    import.meta.env.VITE_ZUS_VERIFIER_ADDRESS,
+    cleanValue(import.meta.env.VITE_ZUS_PROTOCOL_ADDRESS),
+  ),
+  payoutTokenAddress: cleanValue(import.meta.env.VITE_ZUS_PAYOUT_TOKEN_ADDRESS),
   campaignMessage: cleanValue(import.meta.env.VITE_ZUS_CAMPAIGN_MESSAGE, "ZUSMVP01"),
   defaultPayoutFlow: defaultReadableAmount(
     import.meta.env.VITE_ZUS_DEFAULT_PAYOUT_FLOW || import.meta.env.VITE_ZUS_DEFAULT_PAYOUT_AVAX,
@@ -60,8 +65,7 @@ export const appConfig = {
   defaultFundingWei: cleanValue(import.meta.env.VITE_ZUS_DEFAULT_FUNDING_WEI, "100000000000000"),
   explorerBaseUrl: cleanValue(import.meta.env.VITE_EXPLORER_BASE_URL, DEFAULT_EXPLORER_BASE_URL),
   explorerSiteUrl: cleanValue(import.meta.env.VITE_EXPLORER_SITE_URL, DEFAULT_EXPLORER_SITE_URL),
-  chainId: Number.parseInt(cleanValue(import.meta.env.VITE_CHAIN_ID, `${DEFAULT_CHAIN_ID}`), 10),
-  chainHexId: cleanValue(import.meta.env.VITE_CHAIN_HEX_ID, DEFAULT_CHAIN_HEX_ID),
+  chainId: cleanValue(import.meta.env.VITE_CHAIN_ID, DEFAULT_CHAIN_ID),
   networkName: cleanValue(import.meta.env.VITE_NETWORK_NAME, DEFAULT_NETWORK_NAME),
 };
 
@@ -88,16 +92,29 @@ export function getCreateCampaignConfigErrors() {
     issues.push("VITE_RPC_URL");
   }
 
-  if (!isAddress(appConfig.protocolAddress)) {
+  if (!appConfig.relayerUrl) {
+    issues.push("VITE_ZUS_RELAYER_URL");
+  }
+
+  if (!isValidStarknetAddress(appConfig.protocolAddress)) {
     issues.push("VITE_ZUS_PROTOCOL_ADDRESS");
   }
 
-  if (!isAddress(appConfig.verifierAddress)) {
+  if (!isValidStarknetAddress(appConfig.payoutTokenAddress)) {
+    issues.push("VITE_ZUS_PAYOUT_TOKEN_ADDRESS");
+  }
+
+  if (appConfig.verifierAddress && !isValidStarknetAddress(appConfig.verifierAddress)) {
     issues.push("VITE_ZUS_VERIFIER_ADDRESS");
   }
 
-  if (new TextEncoder().encode(appConfig.campaignMessage).length !== 8) {
-    issues.push("VITE_ZUS_CAMPAIGN_MESSAGE(8 ASCII bytes)");
+  const messageBytes = new TextEncoder().encode(appConfig.campaignMessage);
+  if (
+    messageBytes.length === 0 ||
+    messageBytes.length > 31 ||
+    [...messageBytes].some((byte) => byte > 0x7f)
+  ) {
+    issues.push("VITE_ZUS_CAMPAIGN_MESSAGE(1-31 ASCII chars)");
   }
 
   return issues;

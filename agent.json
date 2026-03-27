@@ -1,0 +1,24 @@
+{
+  "agent_name": "ZUS Starknet Hackathon Agent",
+  "operator_wallet": "0x000000000000000000000000000000000000000000000000000000000000dEaD",
+  "supported_tools": [
+    "Cairo",
+    "Starknet.js",
+    "snforge",
+    "scarb",
+    "Node.js"
+  ],
+  "supported_tech_stacks": [
+    "Starknet",
+    "Cairo",
+    "ZK proofs",
+    "React"
+  ],
+  "supported_task_categories": [
+    "private reward distribution",
+    "confidential claims"
+  ],
+  "compute_constraints": {
+    "proof_generation": "runs locally in browser"
+  }
+}

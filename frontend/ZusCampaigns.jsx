@@ -1,18 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  createPublicClient,
-  createWalletClient,
-  custom,
-  encodeFunctionData,
-  http,
-  isAddress,
-  parseEther,
-  stringToHex,
-  toHex,
-} from "viem";
 import { appConfig, getCreateCampaignConfigErrors, resolveApiUrl } from "./config.js";
-import { zusProtocolAbi } from "./zusProtocolAbi.js";
 import { demoCampaigns } from "./demoCampaigns.js";
+import {
+  coerceTextOrNumericToFelt,
+  encodeMessageDomain,
+  executeCampaignDeployment,
+  isValidStarknetAddress,
+  normalizeStarknetAddress,
+  parseTokenAmount,
+} from "./starknet.js";
 
 const CYAN = "#00ffc8";
 const CYAN_DIM = "#00ddb0";
@@ -25,7 +21,6 @@ const MONO = "'Share Tech Mono', monospace";
 const BORDER = "rgba(0,255,200,.08)";
 const BORDER_HOV = "rgba(0,255,200,.25)";
 const TREE_MAX_LEAVES = 1 << 12;
-const FLOW_EVM_TESTNET_EXPLORER_SITE_URL = "https://evm-testnet.flowscan.io/";
 const EMPTY_CREATE_STATE = {
   loading: false,
   error: "",
@@ -34,26 +29,6 @@ const EMPTY_CREATE_STATE = {
   apiCampaign: null,
 };
 const SAMPLE_RECIPIENTS = "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266,1";
-const flowEvmChain = {
-  id: appConfig.chainId,
-  name: appConfig.networkName,
-  nativeCurrency: {
-    name: "Flow",
-    symbol: "FLOW",
-    decimals: 18,
-  },
-  rpcUrls: {
-    default: { http: [appConfig.rpcUrl] },
-    public: { http: [appConfig.rpcUrl] },
-  },
-  blockExplorers: {
-    default: {
-      name: "Flow EVM Explorer",
-      url: appConfig.explorerSiteUrl || FLOW_EVM_TESTNET_EXPLORER_SITE_URL,
-    },
-  },
-  testnet: appConfig.chainId !== 747,
-};
 
 function shortAddress(value) {
   if (!value) {
@@ -135,8 +110,8 @@ function parseRecipients(text) {
     }
 
     const [leafAddress, amount] = parts;
-    if (!isAddress(leafAddress)) {
-      throw new Error(`Recipient row ${index + 1} has an invalid EVM address.`);
+    if (!isValidStarknetAddress(leafAddress)) {
+      throw new Error(`Recipient row ${index + 1} has an invalid address.`);
     }
 
     if (!/^[0-9]+$/.test(amount)) {
@@ -144,7 +119,7 @@ function parseRecipients(text) {
     }
 
     return {
-      leaf_address: leafAddress,
+      leaf_address: normalizeStarknetAddress(leafAddress),
       amount,
     };
   });
@@ -161,7 +136,7 @@ function parseAvaxAmount(value, label) {
     throw new Error(`${label} must be a FLOW amount like 0.1 or 1.`);
   }
 
-  const wei = parseEther(trimmed);
+  const wei = parseTokenAmount(trimmed);
   if (wei <= 0n) {
     throw new Error(`${label} must be greater than 0 FLOW.`);
   }
@@ -331,8 +306,8 @@ function JsonPanel({ campaignName, instant, merkle, payoutAvax, fundingAvax, rec
           { address: "0x709979...79c8", amount: "1" },
         ];
 
-  const payoutWei = parseEther(payoutAvax || appConfig.defaultPayoutAvax).toString();
-  const fundingWei = parseEther(fundingAvax || appConfig.defaultFundingAvax).toString();
+  const payoutWei = parseTokenAmount(payoutAvax || appConfig.defaultPayoutAvax).toString();
+  const fundingWei = parseTokenAmount(fundingAvax || appConfig.defaultFundingAvax).toString();
   const dynamic = `{
   "name": "${campaignName || "ZUS_AIRDROP_PROXIMA"}",
   "network": "${appConfig.networkName}",
@@ -842,7 +817,7 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
     const recipients = parseRecipients(recipientText);
     const creatorAddress = wallet.account;
 
-    if (!creatorAddress || !isAddress(creatorAddress)) {
+    if (!creatorAddress || !isValidStarknetAddress(creatorAddress)) {
       throw new Error("Press CONNECT WALLET before creating campaigns.");
     }
 
@@ -861,110 +836,51 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
     };
   };
 
-  const ensureFlowEvmNetwork = async () => {
-    if (!window.ethereum?.request) {
-      throw new Error("No injected wallet found for the Flow EVM transaction.");
-    }
-
-    const chainIdHex = await window.ethereum.request({ method: "eth_chainId" });
-    const currentChainId = chainIdHex ? Number.parseInt(chainIdHex, 16) : 0;
-
-    if (currentChainId === appConfig.chainId) {
-      return;
-    }
-
-    try {
-      await window.ethereum.request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: appConfig.chainHexId }],
-      });
-    } catch (error) {
-      if (error?.code !== 4902) {
-        throw error;
-      }
-
-      await window.ethereum.request({
-        method: "wallet_addEthereumChain",
-        params: [
-          {
-              chainId: appConfig.chainHexId,
-              chainName: appConfig.networkName,
-              nativeCurrency: {
-              name: "Flow",
-              symbol: "FLOW",
-              decimals: 18,
-            },
-            rpcUrls: [appConfig.rpcUrl],
-            blockExplorerUrls: [appConfig.explorerSiteUrl || FLOW_EVM_TESTNET_EXPLORER_SITE_URL],
-          },
-        ],
-      });
-    }
-  };
-
   const deployOnchainCampaign = async (deployment) => {
-    if (!window.ethereum?.request) {
-      throw new Error("No injected wallet found for the contract transaction.");
-    }
-
-    const account = wallet.account;
-    if (!account) {
-      throw new Error("Press CONNECT WALLET before deploying the onchain campaign.");
+    const walletAccount = wallet.walletAccount;
+    if (!walletAccount || !wallet.account) {
+      throw new Error("Press CONNECT WALLET before deploying the Starknet campaign.");
     }
 
     setCreateState({
       loading: true,
       error: "",
-      success: `Rust API campaign ready. Switching to ${appConfig.networkName} and waiting for wallet signature...`,
+      success: `Rust API campaign ready. Preparing the ${appConfig.networkName} multicall and waiting for wallet signature...`,
       txHash: "",
       apiCampaign: deployment.apiCampaign,
     });
 
-    await ensureFlowEvmNetwork();
-
-    const walletClient = createWalletClient({
-      chain: flowEvmChain,
-      transport: custom(window.ethereum),
-    });
-
-    const txHash = await walletClient.sendTransaction({
-      account,
-      chain: flowEvmChain,
-      to: appConfig.protocolAddress,
-      value: BigInt(deployment.fundingWei),
-      data: encodeFunctionData({
-        abi: zusProtocolAbi,
-        functionName: "createCampaign",
-        args: [
-          deployment.apiCampaign.onchain_campaign_id,
-          appConfig.verifierAddress,
-          toHex(BigInt(deployment.apiCampaign.merkle_root), { size: 32 }),
-          stringToHex(appConfig.campaignMessage, { size: 8 }),
-          BigInt(deployment.payoutWei),
-        ],
-      }),
+    const txHash = await executeCampaignDeployment({
+      rpcUrl: appConfig.rpcUrl,
+      walletAccount,
+      protocolAddress: appConfig.protocolAddress,
+      payoutTokenAddress: appConfig.payoutTokenAddress,
+      verifierAddress: appConfig.verifierAddress || appConfig.protocolAddress,
+      campaignId: await coerceTextOrNumericToFelt(
+        deployment.apiCampaign.onchain_campaign_id || deployment.apiCampaign.campaign_id,
+      ),
+      eligibleRoot: await coerceTextOrNumericToFelt(deployment.apiCampaign.merkle_root),
+      messageDomain: encodeMessageDomain(appConfig.campaignMessage),
+      payoutAmount: BigInt(deployment.payoutWei),
+      fundingAmount: BigInt(deployment.fundingWei),
+      metadataHash: await coerceTextOrNumericToFelt(
+        `${deployment.apiCampaign.campaign_id}:${deployment.apiCampaign.name || deployment.apiCampaign.onchain_campaign_id || ""}`,
+      ),
     });
 
     setCreateState({
       loading: true,
       error: "",
-      success: "Transaction submitted. Waiting for RPC confirmation...",
+      success: "Transaction submitted. Waiting for Starknet RPC confirmation...",
       txHash,
       apiCampaign: deployment.apiCampaign,
     });
-
-    const publicClient = createPublicClient({
-      chain: flowEvmChain,
-      transport: http(appConfig.rpcUrl),
-    });
-
-    await publicClient.waitForTransactionReceipt({ hash: txHash });
 
     setPendingDeployment(null);
     setCreateState({
       loading: false,
       error: "",
-      success: "Campaign created in the Rust API and confirmed onchain.",
+      success: "Campaign created in the Rust API and confirmed on Starknet.",
       txHash,
       apiCampaign: deployment.apiCampaign,
     });

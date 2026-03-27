@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { resolveApiUrl } from "./config.js";
+import { appConfig, resolveApiUrl } from "./config.js";
+import { connectStarknetWallet, createWalletAccount, normalizeStarknetAddress } from "./starknet.js";
 import ZusCampaigns from "./ZusCampaigns.jsx";
 import ZusDashboard from "./ZusDashboard.jsx";
 import ZusRewards from "./ZusRewards.jsx";
@@ -1062,31 +1063,69 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!window.ethereum?.request) {
+    if (!wallet.walletProvider?.on) {
       return undefined;
     }
 
-    const handleAccountsChanged = (accounts) => {
+    const handleAccountsChanged = (accounts = []) => {
+      const nextAccount = accounts?.[0] ? normalizeStarknetAddress(accounts[0]) : "";
       setWallet((current) => ({
         ...current,
-        account: accounts?.[0] || "",
+        account: nextAccount,
+        walletAccount: nextAccount
+          ? createWalletAccount(appConfig.rpcUrl, current.walletProvider, nextAccount)
+          : null,
         error: "",
       }));
     };
 
-    const handleChainChanged = (chainIdHex) => {
+    const handleNetworkChanged = (chainId, accounts = []) => {
+      const nextAccount = accounts?.[0] ? normalizeStarknetAddress(accounts[0]) : "";
       setWallet((current) => ({
         ...current,
-        chainId: chainIdHex ? Number.parseInt(chainIdHex, 16).toString() : "",
+        account: nextAccount || current.account,
+        chainId: chainId ? String(chainId) : "",
+        walletAccount: nextAccount
+          ? createWalletAccount(appConfig.rpcUrl, current.walletProvider, nextAccount)
+          : current.walletAccount,
       }));
     };
 
-    window.ethereum.on?.("accountsChanged", handleAccountsChanged);
-    window.ethereum.on?.("chainChanged", handleChainChanged);
+    wallet.walletProvider.on("accountsChanged", handleAccountsChanged);
+    wallet.walletProvider.on("networkChanged", handleNetworkChanged);
 
     return () => {
-      window.ethereum.removeListener?.("accountsChanged", handleAccountsChanged);
-      window.ethereum.removeListener?.("chainChanged", handleChainChanged);
+      wallet.walletProvider.off?.("accountsChanged", handleAccountsChanged);
+      wallet.walletProvider.off?.("networkChanged", handleNetworkChanged);
+    };
+  }, [wallet.walletProvider]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const reconnectWallet = async () => {
+      try {
+        const session = await connectStarknetWallet({ rpcUrl: appConfig.rpcUrl, silent: true });
+        if (!cancelled && session?.address) {
+          setWallet((current) => ({
+            ...current,
+            account: session.address,
+            chainId: session.chainId,
+            walletProvider: session.walletProvider,
+            walletAccount: session.walletAccount,
+            walletName: session.walletName,
+            error: "",
+          }));
+        }
+      } catch {
+        // Silent reconnect failures should not block the initial render.
+      }
+    };
+
+    void reconnectWallet();
+
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -1155,28 +1194,26 @@ export default function App() {
   };
 
   const connectWallet = async () => {
-    if (!window.ethereum?.request) {
-      const message = "No injected wallet found. Install MetaMask or another EVM wallet.";
-      setWallet((current) => ({ ...current, error: message }));
-      throw new Error(message);
-    }
-
     setWallet((current) => ({ ...current, connecting: true, error: "" }));
 
     try {
-      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-      const chainIdHex = await window.ethereum.request({ method: "eth_chainId" });
-      const account = accounts?.[0] || "";
+      const session = await connectStarknetWallet({ rpcUrl: appConfig.rpcUrl });
+      if (!session?.address) {
+        throw new Error("No Starknet wallet connected. Install Argent X or Braavos.");
+      }
 
       setWallet((current) => ({
         ...current,
-        account,
-        chainId: chainIdHex ? Number.parseInt(chainIdHex, 16).toString() : "",
+        account: session.address,
+        chainId: session.chainId,
         connecting: false,
+        walletProvider: session.walletProvider,
+        walletAccount: session.walletAccount,
+        walletName: session.walletName,
         error: "",
       }));
 
-      return account;
+      return session.address;
     } catch (error) {
       const message = parseErrorMessage(error);
       setWallet((current) => ({
