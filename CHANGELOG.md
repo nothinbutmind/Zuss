@@ -18,10 +18,10 @@ New Starknet contract surface:
   - stores campaign configuration, balances, and nullifier usage
 - `starknet/src/contracts/campaign_registry.cairo`
   - registry-style metadata contract for campaign references and payload hashes
-- `starknet/src/contracts/mock_erc20.cairo`
+- `contracts/starknet/mock_erc20.cairo`
   - Cairo ERC20 used for local protocol tests
-- `starknet/src/contracts/mock_verifier.cairo`
-  - mock verifier contract used for deployment/testing support
+- `contracts/starknet/claim_verifier.cairo`
+  - onchain verifier wrapper that exposes the Cairo verifier to the protocol contract
 - `starknet/src/interfaces/*.cairo`
   - Starknet interfaces for verifier and ERC20 interoperability
 - `starknet/src/types.cairo`

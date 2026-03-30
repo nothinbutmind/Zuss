@@ -1,14 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { appConfig, getCreateCampaignConfigErrors, resolveApiUrl } from "./config.js";
+import { appConfig, getCreateCampaignConfigErrors, getExplorerBaseUrl, getNetworkName, resolveApiUrl } from "./config.js";
 import { demoCampaigns } from "./demoCampaigns.js";
 import {
-  coerceTextOrNumericToFelt,
-  encodeMessageDomain,
-  executeCampaignDeployment,
-  isValidStarknetAddress,
-  normalizeStarknetAddress,
-  parseTokenAmount,
-} from "./starknet.js";
+  executeCampaignDeploymentForChain,
+  isValidAddressForChain,
+  normalizeAddressForChain,
+  parseAmountForChain,
+} from "./chains.js";
 
 const CYAN = "#00ffc8";
 const CYAN_DIM = "#00ddb0";
@@ -89,7 +87,7 @@ async function readJson(response) {
   return payload;
 }
 
-function parseRecipients(text) {
+function parseRecipients(text, chain) {
   const lines = text
     .split("\n")
     .map((line) => line.trim())
@@ -110,7 +108,7 @@ function parseRecipients(text) {
     }
 
     const [leafAddress, amount] = parts;
-    if (!isValidStarknetAddress(leafAddress)) {
+    if (!isValidAddressForChain(chain, leafAddress)) {
       throw new Error(`Recipient row ${index + 1} has an invalid address.`);
     }
 
@@ -119,7 +117,7 @@ function parseRecipients(text) {
     }
 
     return {
-      leaf_address: normalizeStarknetAddress(leafAddress),
+      leaf_address: normalizeAddressForChain(chain, leafAddress),
       amount,
     };
   });
@@ -136,7 +134,7 @@ function parseAvaxAmount(value, label) {
     throw new Error(`${label} must be a FLOW amount like 0.1 or 1.`);
   }
 
-  const wei = parseTokenAmount(trimmed);
+  const wei = parseAmountForChain("flow_evm", trimmed);
   if (wei <= 0n) {
     throw new Error(`${label} must be greater than 0 FLOW.`);
   }
@@ -147,14 +145,15 @@ function parseAvaxAmount(value, label) {
   };
 }
 
-function makeExplorerUrl(hash) {
-  if (!hash || !appConfig.explorerBaseUrl) {
+function makeExplorerUrl(hash, chain) {
+  const explorerBaseUrl = getExplorerBaseUrl(chain);
+  if (!hash || !explorerBaseUrl) {
     return "";
   }
 
-  const base = appConfig.explorerBaseUrl.endsWith("/")
-    ? appConfig.explorerBaseUrl
-    : `${appConfig.explorerBaseUrl}/`;
+  const base = explorerBaseUrl.endsWith("/")
+    ? explorerBaseUrl
+    : `${explorerBaseUrl}/`;
 
   return `${base}${hash}`;
 }
@@ -293,7 +292,7 @@ function useTypewriter(text, speed = 22, delay = 0) {
   return { out, done };
 }
 
-function JsonPanel({ campaignName, instant, merkle, payoutAvax, fundingAvax, recipients }) {
+function JsonPanel({ campaignName, instant, merkle, payoutAvax, fundingAvax, recipients, selectedChain }) {
   const sampleRecipients = recipients.slice(0, 2);
   const previewRecipients =
     sampleRecipients.length > 0
@@ -306,11 +305,11 @@ function JsonPanel({ campaignName, instant, merkle, payoutAvax, fundingAvax, rec
           { address: "0x709979...79c8", amount: "1" },
         ];
 
-  const payoutWei = parseTokenAmount(payoutAvax || appConfig.defaultPayoutAvax).toString();
-  const fundingWei = parseTokenAmount(fundingAvax || appConfig.defaultFundingAvax).toString();
+  const payoutWei = parseAmountForChain(selectedChain, payoutAvax || appConfig.defaultPayoutAvax).toString();
+  const fundingWei = parseAmountForChain(selectedChain, fundingAvax || appConfig.defaultFundingAvax).toString();
   const dynamic = `{
   "name": "${campaignName || "ZUS_AIRDROP_PROXIMA"}",
-  "network": "${appConfig.networkName}",
+  "network": "${getNetworkName(selectedChain)}",
   "instant_release": ${instant},
   "merkle_verified": ${merkle},
   "payout_avax": "${payoutAvax || appConfig.defaultPayoutAvax}",
@@ -643,7 +642,7 @@ function EmptyCampaignState({ loading, error }) {
 }
 
 function StatusMessage({ createState, pendingDeployment }) {
-  const explorerUrl = makeExplorerUrl(createState.txHash);
+  const explorerUrl = makeExplorerUrl(createState.txHash, selectedChain);
   const filecoinUrl = createState.apiCampaign?.filecoin_url || "";
 
   if (createState.error) {
@@ -715,7 +714,7 @@ function StatusMessage({ createState, pendingDeployment }) {
   );
 }
 
-export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavigatePage }) {
+export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavigatePage, selectedChain }) {
   const [active, setActive] = useState("CREATE CAMPAIGN");
   const [campaignName, setCampaignName] = useState("");
   const [instant, setInstant] = useState(true);
@@ -740,7 +739,7 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
 
   const parsedRecipientsForPreview = (() => {
     try {
-      return parseRecipients(recipientText);
+      return parseRecipients(recipientText, selectedChain);
     } catch {
       return [];
     }
@@ -768,7 +767,11 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
         const data = await readJson(await fetch(resolveApiUrl("/campaigns")));
         if (!cancelled) {
           const liveCampaigns = Array.isArray(data)
-            ? data.filter((campaign) => Number(campaign.leaf_count) > 0)
+            ? data.filter(
+                (campaign) =>
+                  Number(campaign.leaf_count) > 0 &&
+                  (campaign.execution_chain || selectedChain) === selectedChain,
+              )
             : [];
           setCampaigns(liveCampaigns.length > 0 ? liveCampaigns : demoCampaigns);
         }
@@ -789,7 +792,7 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
     return () => {
       cancelled = true;
     };
-  }, [refreshNonce]);
+  }, [refreshNonce, selectedChain]);
 
   const resetCreateForm = () => {
     setCampaignName("");
@@ -801,7 +804,7 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
   };
 
   const validateCreateInput = async () => {
-    const configErrors = getCreateCampaignConfigErrors();
+    const configErrors = getCreateCampaignConfigErrors(selectedChain);
     if (configErrors.length > 0) {
       throw new Error(`Missing config: ${configErrors.join(", ")}`);
     }
@@ -814,10 +817,10 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
     const payout = parseAvaxAmount(payoutAvax, "Payout FLOW");
     const funding = parseAvaxAmount(fundingAvax, "Funding FLOW");
 
-    const recipients = parseRecipients(recipientText);
+    const recipients = parseRecipients(recipientText, selectedChain);
     const creatorAddress = wallet.account;
 
-    if (!creatorAddress || !isValidStarknetAddress(creatorAddress)) {
+    if (!creatorAddress || !isValidAddressForChain(selectedChain, creatorAddress)) {
       throw new Error("Press CONNECT WALLET before creating campaigns.");
     }
 
@@ -839,33 +842,20 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
   const deployOnchainCampaign = async (deployment) => {
     const walletAccount = wallet.walletAccount;
     if (!walletAccount || !wallet.account) {
-      throw new Error("Press CONNECT WALLET before deploying the Starknet campaign.");
+      throw new Error("Press CONNECT WALLET before deploying the selected campaign.");
     }
 
     setCreateState({
       loading: true,
       error: "",
-      success: `Rust API campaign ready. Preparing the ${appConfig.networkName} multicall and waiting for wallet signature...`,
+      success: `Rust API campaign ready. Preparing the ${getNetworkName(selectedChain)} transaction flow and waiting for wallet signature...`,
       txHash: "",
       apiCampaign: deployment.apiCampaign,
     });
 
-    const txHash = await executeCampaignDeployment({
-      rpcUrl: appConfig.rpcUrl,
+    const txHash = await executeCampaignDeploymentForChain(selectedChain, appConfig, walletAccount, {
       walletAccount,
-      protocolAddress: appConfig.protocolAddress,
-      payoutTokenAddress: appConfig.payoutTokenAddress,
-      verifierAddress: appConfig.verifierAddress || appConfig.protocolAddress,
-      campaignId: await coerceTextOrNumericToFelt(
-        deployment.apiCampaign.onchain_campaign_id || deployment.apiCampaign.campaign_id,
-      ),
-      eligibleRoot: await coerceTextOrNumericToFelt(deployment.apiCampaign.merkle_root),
-      messageDomain: encodeMessageDomain(appConfig.campaignMessage),
-      payoutAmount: BigInt(deployment.payoutWei),
-      fundingAmount: BigInt(deployment.fundingWei),
-      metadataHash: await coerceTextOrNumericToFelt(
-        `${deployment.apiCampaign.campaign_id}:${deployment.apiCampaign.name || deployment.apiCampaign.onchain_campaign_id || ""}`,
-      ),
+      ...deployment,
     });
 
     setCreateState({
@@ -933,6 +923,7 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
           body: JSON.stringify({
             name: validated.name,
             campaign_creator_address: validated.creatorAddress,
+            execution_chain: selectedChain,
             recipients: validated.recipients,
           }),
         }),
@@ -1270,8 +1261,8 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
                   CREATE CAMPAIGN_
                 </h1>
                 <div style={{ fontFamily: MONO, fontSize: 11, color: MUTED2, letterSpacing: 1.2, lineHeight: 1.9, marginBottom: 28 }}>
-                  GET /campaigns READS THE LIVE RUST API STREAM. CREATE CAMPAIGN POSTS TO THE API FIRST,
-                  THEN SWITCHES TO {appConfig.networkName.toUpperCase()} AND CALLS THE ZUSPROTOCOL CONTRACT.
+                  GET /campaigns READS THE LIVE FILECOIN-BACKED RUST API STREAM. CREATE CAMPAIGN POSTS TO THE API FIRST,
+                  THEN SWITCHES TO {getNetworkName(selectedChain).toUpperCase()} AND CALLS THE TARGET ZUS PROTOCOL.
                 </div>
               </div>
 
@@ -1394,7 +1385,7 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
                           }}
                         />
                         <div style={{ fontFamily: MONO, fontSize: 10, color: MUTED2, letterSpacing: 1, marginTop: 8, lineHeight: 1.6 }}>
-                          TOTAL FLOW ATTACHED TO THE CREATE TX ON {appConfig.networkName.toUpperCase()}.
+                          TOTAL FLOW ATTACHED TO THE CREATE TX ON {getNetworkName(selectedChain).toUpperCase()}.
                         </div>
                       </div>
                     </div>
@@ -1425,7 +1416,7 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
                         <br />
                         CREATOR WALLET: <span style={{ color: wallet.account ? CYAN : MUTED }}>{wallet.account || "CONNECT WALLET"}</span>
                         <br />
-                        TARGET NETWORK: <span style={{ color: CYAN }}>{appConfig.networkName.toUpperCase()}</span>
+                        TARGET NETWORK: <span style={{ color: CYAN }}>{getNetworkName(selectedChain).toUpperCase()}</span>
                       </div>
                     </div>
 
@@ -1450,7 +1441,7 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
                               ? "PENDING ONCHAIN DEPLOYMENT"
                               : createState.success
                                 ? "CAMPAIGN DEPLOYED"
-                                : `READY FOR ${appConfig.networkName.toUpperCase()}`}
+                                : `READY FOR ${getNetworkName(selectedChain).toUpperCase()}`}
                         </span>
                       </div>
                       <Btn
@@ -1482,6 +1473,7 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
                     payoutAvax={payoutAvax}
                     fundingAvax={fundingAvax}
                     recipients={parsedRecipientsForPreview}
+                    selectedChain={selectedChain}
                   />
                 </div>
               </div>

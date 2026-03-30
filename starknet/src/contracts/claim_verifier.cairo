@@ -1,0 +1,1 @@
+../../../contracts/starknet/claim_verifier.cairo

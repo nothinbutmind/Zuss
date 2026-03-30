@@ -14,8 +14,10 @@ pub fn compute_claim_digest(campaign_id: felt252, claim: ClaimPublicInputs) -> f
     let digest_0 = mix2(campaign_id, claim.claimant_address.into());
     let digest_1 = mix2(digest_0, claim.message_domain);
     let digest_2 = mix2(digest_1, claim.eligible_root);
-    let digest_3 = mix2(digest_2, claim.nullifier_hash);
-    mix2(digest_3, claim.stealth_address.into())
+    let digest_3 = mix2(digest_2, claim.ephemeral_pubkey_x);
+    let digest_4 = mix2(digest_3, claim.ephemeral_pubkey_y);
+    let digest_5 = mix2(digest_4, claim.nullifier_hash);
+    mix2(digest_5, claim.stealth_address.into())
 }
 
 pub fn assert_valid_claim(config: CampaignConfig, claim: ClaimPublicInputs) {
@@ -24,5 +26,7 @@ pub fn assert_valid_claim(config: CampaignConfig, claim: ClaimPublicInputs) {
     assert(claim.message_domain == config.message_domain, 'BAD_DOMAIN');
     assert(claim.eligible_root == config.eligible_root, 'BAD_ROOT');
     assert(claim.nullifier_hash != 0, 'BAD_NULLIFIER');
+    assert(claim.ephemeral_pubkey_x != 0, 'BAD_EPHEM_X');
+    assert(claim.ephemeral_pubkey_y != 0, 'BAD_EPHEM_Y');
     assert(claim.stealth_address != ZERO_ADDRESS, 'BAD_STEALTH');
 }

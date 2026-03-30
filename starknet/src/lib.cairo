@@ -1,7 +1,7 @@
 pub mod contracts {
     pub mod campaign_registry;
+    pub mod claim_verifier;
     pub mod mock_erc20;
-    pub mod mock_verifier;
     pub mod zus_protocol;
 }
 
@@ -49,7 +49,7 @@ mod tests {
     const PAYOUT: u256 = 100;
     const FUNDING: u256 = 500;
     const WALLET_SECRET: felt252 = 123456789;
-    const STEALTH_TWEAK: felt252 = 987654321;
+    const EPHEMERAL_SECRET: felt252 = 987654321;
 
     #[derive(Drop)]
     struct ClaimFixture {
@@ -57,15 +57,27 @@ mod tests {
         proof: Array<felt252>,
         claim_proof: Array<felt252>,
         eligible_index: usize,
+        ephemeral_pubkey_x: felt252,
+        ephemeral_pubkey_y: felt252,
         nullifier: felt252,
         stealth_address: ContractAddress,
     }
 
     #[test]
     fn stealth_address_derivation_changes_the_base_address() {
+        let fixture = build_claim_fixture();
         let (pubkey_x, pubkey_y) = wallet_public_key(WALLET_SECRET);
         let base_address = base_public_key_to_address(pubkey_x, pubkey_y);
-        let stealth_address = derive_stealth_address(pubkey_x, pubkey_y, STEALTH_TWEAK);
+        let stealth_address = derive_stealth_address(
+            pubkey_x,
+            pubkey_y,
+            WALLET_SECRET,
+            CLAIMANT,
+            MESSAGE,
+            fixture.root,
+            fixture.ephemeral_pubkey_x,
+            fixture.ephemeral_pubkey_y,
+        );
 
         assert(base_address != stealth_address, 'same address');
     }
@@ -141,6 +153,8 @@ mod tests {
                 claimant_address: CLAIMANT,
                 message_domain: MESSAGE,
                 eligible_root: fixture.root,
+                ephemeral_pubkey_x: fixture.ephemeral_pubkey_x,
+                ephemeral_pubkey_y: fixture.ephemeral_pubkey_y,
                 nullifier_hash: fixture.nullifier,
                 stealth_address: fixture.stealth_address,
             },
@@ -173,6 +187,8 @@ mod tests {
                 claimant_address: CLAIMANT,
                 message_domain: MESSAGE,
                 eligible_root: fixture.root,
+                ephemeral_pubkey_x: fixture.ephemeral_pubkey_x,
+                ephemeral_pubkey_y: fixture.ephemeral_pubkey_y,
                 nullifier_hash: fixture.nullifier,
                 stealth_address: fixture.stealth_address,
             },
@@ -184,6 +200,8 @@ mod tests {
                 claimant_address: CLAIMANT,
                 message_domain: MESSAGE,
                 eligible_root: fixture.root,
+                ephemeral_pubkey_x: fixture.ephemeral_pubkey_x,
+                ephemeral_pubkey_y: fixture.ephemeral_pubkey_y,
                 nullifier_hash: fixture.nullifier,
                 stealth_address: fixture.stealth_address,
             },
@@ -225,17 +243,19 @@ mod tests {
         let leaf: felt252 = CLAIMANT.into();
         let proof = sample_merkle_path();
         let root = compute_root(leaf, eligible_index, proof.span());
+        let (ephemeral_pubkey_x, ephemeral_pubkey_y) = wallet_public_key(EPHEMERAL_SECRET);
         let outputs = circuit::main(
             WALLET_SECRET,
-            STEALTH_TWEAK,
             CLAIMANT,
             MESSAGE,
             root,
+            ephemeral_pubkey_x,
+            ephemeral_pubkey_y,
             proof.span(),
             eligible_index,
         );
 
-        let mut claim_proof = array![WALLET_SECRET, STEALTH_TWEAK, eligible_index.into()];
+        let mut claim_proof = array![WALLET_SECRET, eligible_index.into()];
         claim_proof.append_span(proof.span());
 
         ClaimFixture {
@@ -243,6 +263,8 @@ mod tests {
             proof,
             claim_proof,
             eligible_index,
+            ephemeral_pubkey_x,
+            ephemeral_pubkey_y,
             nullifier: outputs.nullifier,
             stealth_address: outputs.stealth_address,
         }

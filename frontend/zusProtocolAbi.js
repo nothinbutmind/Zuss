@@ -1,4 +1,4 @@
-export const zusProtocolAbi = [
+export const starknetZusProtocolAbi = [
   {
     type: "struct",
     name: "core::integer::u256",
@@ -40,7 +40,7 @@ export const zusProtocolAbi = [
   },
 ];
 
-export const erc20Abi = [
+export const starknetErc20Abi = [
   {
     type: "struct",
     name: "core::integer::u256",
@@ -65,4 +65,10 @@ export const erc20Abi = [
       },
     ],
   },
+];
+
+export const flowZusProtocolAbi = [
+  "function createCampaign(bytes32 campaignId, address verifier, bytes32 eligibleRoot, bytes8 expectedMessage, uint256 payoutAmount) payable",
+  "function fundCampaign(bytes32 campaignId) payable",
+  "function claim(bytes32 campaignId, bytes proof, bytes32[] publicInputs) returns (address stealthRecipient)",
 ];

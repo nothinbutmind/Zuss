@@ -18,7 +18,7 @@
  * - compile the Cairo workspace
  * - compile CASM artifacts for deployable contracts
  * - declare and deploy `ZusProtocol`
- * - declare and deploy `MockVerifier`
+ * - declare and deploy `ClaimVerifier`
  * - save the deployment record to `starknet/deployments.json`
  */
 
@@ -60,7 +60,7 @@ const ZUS_PROTOCOL_ARTIFACT = join(
 );
 const VERIFIER_ARTIFACT = join(
   TARGET_DIR,
-  "zus_protocol_starknet_MockVerifier.contract_class.json",
+  "zus_protocol_starknet_ClaimVerifier.contract_class.json",
 );
 
 function requireEnv(name: string): string {
@@ -237,10 +237,8 @@ async function main(): Promise<void> {
   console.log("Declaring and deploying ZusProtocol...");
   const zusProtocol = await declareAndDeploy(account, provider, ZUS_PROTOCOL_ARTIFACT, {});
 
-  console.log("Declaring and deploying MockVerifier...");
-  const verifier = await declareAndDeploy(account, provider, VERIFIER_ARTIFACT, {
-    initial_owner: normalizedDeployer,
-  });
+  console.log("Declaring and deploying ClaimVerifier...");
+  const verifier = await declareAndDeploy(account, provider, VERIFIER_ARTIFACT, {});
 
   const record: DeploymentsFile = {
     network: "starknet-sepolia",
@@ -258,7 +256,7 @@ async function main(): Promise<void> {
   console.log("");
   console.log("Deployment successful.");
   console.log(`ZusProtocol: ${zusProtocol.address}`);
-  console.log(`MockVerifier: ${verifier.address}`);
+  console.log(`ClaimVerifier: ${verifier.address}`);
   console.log(`Deployments file: ${DEPLOYMENTS_PATH}`);
 }
 

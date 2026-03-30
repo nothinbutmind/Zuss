@@ -8,6 +8,7 @@
     "relayer": "node relayer/server.js"
   },
   "dependencies": {
+    "ethers": "^6.16.0",
     "starknet": "7.6.4"
   }
 }

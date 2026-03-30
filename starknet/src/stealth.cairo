@@ -5,19 +5,81 @@ use starknet::ContractAddress;
 
 const STEALTH_ADDR_DOMAIN: felt252 = 'STEALTH_ADDR';
 const RETRY_ADDR_DOMAIN: felt252 = 'STEALTH_RETRY';
+const STEALTH_TWEAK_DOMAIN: felt252 = 'STEALTH_TWEAK';
+const STEALTH_ZERO_DOMAIN: felt252 = 'STEALTH_ZERO';
 
-/// Derives a one-time Starknet stealth address from a base public key and a private stealth tweak.
+/// Derives a private stealth tweak from the claimant secret plus an ephemeral public key.
+///
+/// This keeps the tweak itself out of the public claim payload. The verifier can still recompute
+/// it from public context plus the private wallet secret, while the claimant can recover it
+/// locally from the same inputs.
+pub fn derive_private_stealth_tweak(
+    wallet_secret: felt252,
+    claimant_address: ContractAddress,
+    message: felt252,
+    eligible_root: felt252,
+    ephemeral_pubkey_x: felt252,
+    ephemeral_pubkey_y: felt252,
+) -> felt252 {
+    assert(wallet_secret != 0, 'ZERO_WALLET_SECRET');
+
+    // Reject malformed ephemeral public keys early so the stealth derivation is pinned to a real
+    // STARK-curve point instead of arbitrary field elements.
+    let _ = match EcPointTrait::new_nz(ephemeral_pubkey_x, ephemeral_pubkey_y) {
+        Option::Some(point) => point,
+        Option::None => panic!("BAD_EPHEMERAL_PUBKEY"),
+    };
+    let claimant_address_felt: felt252 = claimant_address.into();
+
+    let candidate = PoseidonTrait::new()
+        .update(STEALTH_TWEAK_DOMAIN)
+        .update(wallet_secret)
+        .update(claimant_address_felt)
+        .update(message)
+        .update(eligible_root)
+        .update(ephemeral_pubkey_x)
+        .update(ephemeral_pubkey_y)
+        .finalize();
+
+    non_zero_scalar(candidate)
+}
+
+/// Derives a one-time Starknet stealth address from a base public key plus a private tweak that is
+/// itself deterministically derived from an ephemeral public key.
 ///
 /// The flow mirrors stealth-address schemes used in other ecosystems:
 /// 1. Parse the base public key as a point on the STARK curve.
-/// 2. Compute `stealth_tweak * G`, where `G` is the STARK-curve generator.
-/// 3. Add that tweak point to the base public key to obtain a fresh one-time stealth pubkey.
-/// 4. Hash the resulting pubkey coordinates into a Starknet `ContractAddress`.
-/// 5. Assert that the stealth address is different from the address derived from the base pubkey.
+/// 2. Derive a private tweak from the claimant secret, campaign context, and ephemeral pubkey.
+/// 3. Compute `stealth_tweak * G`, where `G` is the STARK-curve generator.
+/// 4. Add that tweak point to the base public key to obtain a fresh one-time stealth pubkey.
+/// 5. Hash the resulting pubkey coordinates into a Starknet `ContractAddress`.
+/// 6. Assert that the stealth address is different from the address derived from the base pubkey.
 pub fn derive_stealth_address(
+    base_pubkey_x: felt252,
+    base_pubkey_y: felt252,
+    wallet_secret: felt252,
+    claimant_address: ContractAddress,
+    message: felt252,
+    eligible_root: felt252,
+    ephemeral_pubkey_x: felt252,
+    ephemeral_pubkey_y: felt252,
+) -> ContractAddress {
+    let stealth_tweak = derive_private_stealth_tweak(
+        wallet_secret,
+        claimant_address,
+        message,
+        eligible_root,
+        ephemeral_pubkey_x,
+        ephemeral_pubkey_y,
+    );
+    derive_stealth_address_from_tweak(base_pubkey_x, base_pubkey_y, stealth_tweak)
+}
+
+/// Lower-level helper that turns a base public key and an already-derived tweak into the final
+/// one-time stealth address.
+pub fn derive_stealth_address_from_tweak(
     base_pubkey_x: felt252, base_pubkey_y: felt252, stealth_tweak: felt252,
 ) -> ContractAddress {
-    // The tweak must be non-zero or the derived pubkey would collapse back to the base pubkey.
     assert(stealth_tweak != 0, 'ZERO_TWEAK');
 
     // Parse the caller-provided public key coordinates and reject points that are not on the
@@ -83,5 +145,19 @@ fn point_to_address(point: NonZeroEcPoint, domain: felt252) -> ContractAddress {
                     .finalize();
             },
         };
+    };
+}
+
+/// Retries a hashed scalar until it lands in the valid non-zero range.
+fn non_zero_scalar(mut candidate: felt252) -> felt252 {
+    loop {
+        if candidate != 0 {
+            return candidate;
+        };
+
+        candidate = PoseidonTrait::new()
+            .update(STEALTH_ZERO_DOMAIN)
+            .update(candidate)
+            .finalize();
     };
 }

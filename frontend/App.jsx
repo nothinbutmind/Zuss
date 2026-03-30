@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { appConfig, resolveApiUrl } from "./config.js";
-import { connectStarknetWallet, createWalletAccount, normalizeStarknetAddress } from "./starknet.js";
+import {
+  CHAIN_OPTIONS,
+  buildWalletAccountForChain,
+  connectWalletForChain,
+  normalizeChainKey,
+} from "./chains.js";
 import ZusCampaigns from "./ZusCampaigns.jsx";
 import ZusDashboard from "./ZusDashboard.jsx";
 import ZusRewards from "./ZusRewards.jsx";
@@ -14,7 +19,17 @@ const REWARDS_HASH = "#/rewards";
 const LEGACY_VAULT_HASH = "#/vault";
 const PROTOCOLS_HASH = "#/protocols";
 const SUBTITLE =
-  "Zus is a token-gated rewards protocol built on Flow EVM — where eligibility is verified, identity stays hidden, and balances remain confidential.";
+  "Zus unifies Flow EVM, Filecoin, and Starknet into one private rewards app where campaign data stays shared, eligibility is verified, and claims stay confidential.";
+
+const EMPTY_WALLET = {
+  account: "",
+  chainId: "",
+  connecting: false,
+  error: "",
+  walletProvider: null,
+  walletAccount: null,
+  walletName: "",
+};
 
 function getCurrentRoute() {
   if (typeof window === "undefined") {
@@ -135,9 +150,9 @@ function TypewriterSub() {
   }, []);
 
   const highlight = (value) => {
-    const parts = value.split(/(built on Flow EVM|remain confidential)/g);
+    const parts = value.split(/(Flow EVM, Filecoin, and Starknet|claims stay confidential)/g);
     return parts.map((part, index) =>
-      part === "built on Flow EVM" || part === "remain confidential" ? (
+      part === "Flow EVM, Filecoin, and Starknet" || part === "claims stay confidential" ? (
         <span key={index} style={{ color: "#00ddb0" }}>
           {part}
         </span>
@@ -1042,16 +1057,16 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
 
 export default function App() {
   const [route, setRoute] = useState(getCurrentRoute);
-  const [wallet, setWallet] = useState({
-    account: "",
-    chainId: "",
-    connecting: false,
-    error: "",
+  const [selectedChain, setSelectedChain] = useState("starknet");
+  const [walletSessions, setWalletSessions] = useState({
+    flow_evm: { ...EMPTY_WALLET },
+    starknet: { ...EMPTY_WALLET },
   });
   const [selectedCampaignId, setSelectedCampaignId] = useState(getSelectedCampaignId);
   const [campaigns, setCampaigns] = useState([]);
   const [campaignsLoading, setCampaignsLoading] = useState(false);
   const [campaignsError, setCampaignsError] = useState("");
+  const wallet = walletSessions[selectedChain];
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -1063,31 +1078,37 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!wallet.walletProvider?.on) {
+    if (selectedChain !== "starknet" || !wallet.walletProvider?.on) {
       return undefined;
     }
 
     const handleAccountsChanged = (accounts = []) => {
-      const nextAccount = accounts?.[0] ? normalizeStarknetAddress(accounts[0]) : "";
-      setWallet((current) => ({
+      const nextAccount = accounts?.[0] || "";
+      setWalletSessions((current) => ({
         ...current,
-        account: nextAccount,
-        walletAccount: nextAccount
-          ? createWalletAccount(appConfig.rpcUrl, current.walletProvider, nextAccount)
-          : null,
-        error: "",
+        starknet: {
+          ...current.starknet,
+          account: nextAccount,
+          walletAccount: nextAccount
+            ? buildWalletAccountForChain("starknet", appConfig, current.starknet.walletProvider, nextAccount)
+            : null,
+          error: "",
+        },
       }));
     };
 
     const handleNetworkChanged = (chainId, accounts = []) => {
-      const nextAccount = accounts?.[0] ? normalizeStarknetAddress(accounts[0]) : "";
-      setWallet((current) => ({
+      const nextAccount = accounts?.[0] || "";
+      setWalletSessions((current) => ({
         ...current,
-        account: nextAccount || current.account,
-        chainId: chainId ? String(chainId) : "",
-        walletAccount: nextAccount
-          ? createWalletAccount(appConfig.rpcUrl, current.walletProvider, nextAccount)
-          : current.walletAccount,
+        starknet: {
+          ...current.starknet,
+          account: nextAccount || current.starknet.account,
+          chainId: chainId ? String(chainId) : "",
+          walletAccount: nextAccount
+            ? buildWalletAccountForChain("starknet", appConfig, current.starknet.walletProvider, nextAccount)
+            : current.starknet.walletAccount,
+        },
       }));
     };
 
@@ -1098,23 +1119,43 @@ export default function App() {
       wallet.walletProvider.off?.("accountsChanged", handleAccountsChanged);
       wallet.walletProvider.off?.("networkChanged", handleNetworkChanged);
     };
-  }, [wallet.walletProvider]);
+  }, [selectedChain, wallet.walletProvider]);
 
   useEffect(() => {
     let cancelled = false;
 
     const reconnectWallet = async () => {
       try {
-        const session = await connectStarknetWallet({ rpcUrl: appConfig.rpcUrl, silent: true });
-        if (!cancelled && session?.address) {
-          setWallet((current) => ({
+        const [starknetSession, flowSession] = await Promise.all([
+          connectWalletForChain("starknet", appConfig, { silent: true }).catch(() => null),
+          connectWalletForChain("flow_evm", appConfig, { silent: true }).catch(() => null),
+        ]);
+
+        if (!cancelled) {
+          setWalletSessions((current) => ({
             ...current,
-            account: session.address,
-            chainId: session.chainId,
-            walletProvider: session.walletProvider,
-            walletAccount: session.walletAccount,
-            walletName: session.walletName,
-            error: "",
+            starknet: starknetSession?.address
+              ? {
+                  ...current.starknet,
+                  account: starknetSession.address,
+                  chainId: starknetSession.chainId,
+                  walletProvider: starknetSession.walletProvider,
+                  walletAccount: starknetSession.walletAccount,
+                  walletName: starknetSession.walletName,
+                  error: "",
+                }
+              : current.starknet,
+            flow_evm: flowSession?.address
+              ? {
+                  ...current.flow_evm,
+                  account: flowSession.address,
+                  chainId: flowSession.chainId,
+                  walletProvider: flowSession.walletProvider,
+                  walletAccount: flowSession.walletAccount,
+                  walletName: flowSession.walletName,
+                  error: "",
+                }
+              : current.flow_evm,
           }));
         }
       } catch {
@@ -1194,56 +1235,123 @@ export default function App() {
   };
 
   const connectWallet = async () => {
-    setWallet((current) => ({ ...current, connecting: true, error: "" }));
+    setWalletSessions((current) => ({
+      ...current,
+      [selectedChain]: {
+        ...current[selectedChain],
+        connecting: true,
+        error: "",
+      },
+    }));
 
     try {
-      const session = await connectStarknetWallet({ rpcUrl: appConfig.rpcUrl });
+      const session = await connectWalletForChain(selectedChain, appConfig);
       if (!session?.address) {
-        throw new Error("No Starknet wallet connected. Install Argent X or Braavos.");
+        throw new Error(
+          selectedChain === "flow_evm"
+            ? "No Flow EVM wallet connected."
+            : "No Starknet wallet connected. Install Argent X or Braavos.",
+        );
       }
 
-      setWallet((current) => ({
+      setWalletSessions((current) => ({
         ...current,
-        account: session.address,
-        chainId: session.chainId,
-        connecting: false,
-        walletProvider: session.walletProvider,
-        walletAccount: session.walletAccount,
-        walletName: session.walletName,
-        error: "",
+        [selectedChain]: {
+          ...current[selectedChain],
+          account: session.address,
+          chainId: session.chainId,
+          connecting: false,
+          walletProvider: session.walletProvider,
+          walletAccount: session.walletAccount,
+          walletName: session.walletName,
+          error: "",
+        },
       }));
 
       return session.address;
     } catch (error) {
       const message = parseErrorMessage(error);
-      setWallet((current) => ({
+      setWalletSessions((current) => ({
         ...current,
-        connecting: false,
-        error: message,
+        [selectedChain]: {
+          ...current[selectedChain],
+          connecting: false,
+          error: message,
+        },
       }));
       throw error;
     }
   };
 
+  const visibleCampaigns = campaigns.filter((campaign) => {
+    const campaignChain = normalizeChainKey(campaign.execution_chain || selectedChain);
+    return campaignChain === selectedChain;
+  });
+  const chainSelector = (
+    <div
+      style={{
+        position: "fixed",
+        top: 18,
+        right: 18,
+        zIndex: 160,
+        display: "flex",
+        gap: 8,
+        padding: 8,
+        border: "1px solid rgba(0,255,200,.14)",
+        background: "rgba(2,13,15,.92)",
+      }}
+    >
+      {CHAIN_OPTIONS.map((option) => {
+        const active = option.key === selectedChain;
+        return (
+          <button
+            key={option.key}
+            onClick={() => setSelectedChain(option.key)}
+            style={{
+              fontFamily: "'Share Tech Mono',monospace",
+              fontSize: 10,
+              letterSpacing: 1.6,
+              padding: "8px 12px",
+              border: `1px solid ${active ? "#00ffc8" : "rgba(0,255,200,.12)"}`,
+              background: active ? "rgba(0,255,200,.14)" : "transparent",
+              color: active ? "#00ffc8" : "#4a7a72",
+              cursor: "pointer",
+            }}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const renderWithChainSelector = (child) => (
+    <>
+      {chainSelector}
+      {child}
+    </>
+  );
+
   if (route === "campaigns") {
-    return (
+    return renderWithChainSelector(
       <ZusCampaigns
         wallet={wallet}
         onConnect={connectWallet}
         onNavigateHome={() => navigateTo("home")}
         onNavigatePage={navigateTo}
+        selectedChain={selectedChain}
       />
     );
   }
 
   if (route === "dashboard") {
-    return (
+    return renderWithChainSelector(
       <ZusDashboard
         wallet={wallet}
         onConnect={connectWallet}
         onNavigateHome={() => navigateTo("home")}
         onNavigatePage={navigateTo}
-        campaigns={campaigns}
+        campaigns={visibleCampaigns}
         campaignsLoading={campaignsLoading}
         campaignsError={campaignsError}
         onOpenCampaign={(campaignId) => navigateTo("protocols", campaignId)}
@@ -1252,13 +1360,13 @@ export default function App() {
   }
 
   if (route === "rewards") {
-    return (
+    return renderWithChainSelector(
       <ZusRewards
         wallet={wallet}
         onConnect={connectWallet}
         onNavigateHome={() => navigateTo("home")}
         onNavigatePage={navigateTo}
-        campaigns={campaigns}
+        campaigns={visibleCampaigns}
         campaignsLoading={campaignsLoading}
         campaignsError={campaignsError}
         onOpenCampaign={(campaignId) => navigateTo("protocols", campaignId)}
@@ -1267,20 +1375,21 @@ export default function App() {
   }
 
   if (route === "protocols") {
-    return (
+    return renderWithChainSelector(
       <ZusProtocolDetail
         wallet={wallet}
         onConnect={connectWallet}
         onNavigateBack={() => navigateTo("rewards")}
         onNavigateHome={() => navigateTo("home")}
         onNavigatePage={navigateTo}
+        selectedChain={selectedChain}
         campaignId={selectedCampaignId}
         campaign={campaigns.find((item) => item.campaign_id === selectedCampaignId) || null}
       />
     );
   }
 
-  return (
+  return renderWithChainSelector(
     <>
       {wallet.error ? (
         <div

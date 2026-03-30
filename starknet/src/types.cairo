@@ -18,6 +18,8 @@ pub struct ClaimPublicInputs {
     pub claimant_address: ContractAddress,
     pub message_domain: felt252,
     pub eligible_root: felt252,
+    pub ephemeral_pubkey_x: felt252,
+    pub ephemeral_pubkey_y: felt252,
     pub nullifier_hash: felt252,
     pub stealth_address: ContractAddress,
 }

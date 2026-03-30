@@ -10,7 +10,7 @@ import {
   shortString,
   validateAndParseAddress,
 } from "starknet";
-import { erc20Abi, zusProtocolAbi } from "./zusProtocolAbi.js";
+import { starknetErc20Abi, starknetZusProtocolAbi } from "./zusProtocolAbi.js";
 
 const SUPPORTED_WALLETS = ["argentX", "braavos"];
 const STARK_FIELD_PRIME = (1n << 251n) + (17n << 192n) + 1n;
@@ -20,7 +20,7 @@ const NULLIFIER_DOMAIN = BigInt(shortString.encodeShortString("NULLIFIER_V1"));
 const STEALTH_ADDR_DOMAIN = BigInt(shortString.encodeShortString("STEALTH_ADDR"));
 const RETRY_ADDR_DOMAIN = BigInt(shortString.encodeShortString("STEALTH_RETRY"));
 const WITNESS_SEED_DOMAIN = BigInt(shortString.encodeShortString("ZUS_WITNESS"));
-const STEALTH_SEED_DOMAIN = BigInt(shortString.encodeShortString("ZUS_STEALTH"));
+const STEALTH_TWEAK_DOMAIN = BigInt(shortString.encodeShortString("STEALTH_TWEAK"));
 
 function getBrowserCrypto() {
   if (typeof globalThis === "undefined" || !globalThis.crypto?.subtle) {
@@ -134,8 +134,46 @@ function deriveNullifier(walletSecret, messageDomain) {
   return toFeltHex(hash.computePedersenHash(digest0, toBigIntFelt(messageDomain)));
 }
 
-function deriveStealthAddress(walletSecret, stealthTweak) {
+function derivePrivateStealthTweak({
+  walletSecret,
+  claimantAddress,
+  messageDomain,
+  eligibleRoot,
+  ephemeralPubkeyX,
+  ephemeralPubkeyY,
+}) {
+  return poseidonElements([
+    STEALTH_TWEAK_DOMAIN,
+    walletSecret,
+    claimantAddress,
+    messageDomain,
+    eligibleRoot,
+    ephemeralPubkeyX,
+    ephemeralPubkeyY,
+  ]);
+}
+
+function deriveStealthPrivateKey(walletSecret, stealthTweak) {
+  return nonZeroFeltHex(toBigIntFelt(walletSecret) + toBigIntFelt(stealthTweak));
+}
+
+function deriveStealthAddress({
+  walletSecret,
+  claimantAddress,
+  messageDomain,
+  eligibleRoot,
+  ephemeralPubkeyX,
+  ephemeralPubkeyY,
+}) {
   const basePoint = ec.starkCurve.ProjectivePoint.BASE.multiply(toBigIntFelt(walletSecret));
+  const stealthTweak = derivePrivateStealthTweak({
+    walletSecret,
+    claimantAddress,
+    messageDomain,
+    eligibleRoot,
+    ephemeralPubkeyX,
+    ephemeralPubkeyY,
+  });
   const tweakPoint = ec.starkCurve.ProjectivePoint.BASE.multiply(toBigIntFelt(stealthTweak));
   const stealthPoint = basePoint.add(tweakPoint).toAffine();
   const baseAddress = pointToAddress(basePoint.toAffine(), STEALTH_ADDR_DOMAIN);
@@ -146,6 +184,18 @@ function deriveStealthAddress(walletSecret, stealthTweak) {
   }
 
   return stealthAddress;
+}
+
+function randomScalarHex() {
+  const bytes = new Uint8Array(32);
+  getBrowserCrypto().getRandomValues(bytes);
+
+  let value = 0n;
+  for (const byte of bytes) {
+    value = (value << 8n) + BigInt(byte);
+  }
+
+  return nonZeroFeltHex(value);
 }
 
 function verifyMerkleMembership(leafAddress, root, proofPath, leafIndex) {
@@ -208,6 +258,8 @@ export function buildClaimAuthorizationTypedData(chainId, campaignId, claim) {
         { name: "claimant_address", type: "ContractAddress" },
         { name: "message_domain", type: "felt" },
         { name: "eligible_root", type: "felt" },
+        { name: "ephemeral_pubkey_x", type: "felt" },
+        { name: "ephemeral_pubkey_y", type: "felt" },
         { name: "nullifier_hash", type: "felt" },
         { name: "stealth_address", type: "ContractAddress" },
       ],
@@ -223,6 +275,8 @@ export function buildClaimAuthorizationTypedData(chainId, campaignId, claim) {
       claimant_address: claim.claimant_address,
       message_domain: claim.message_domain,
       eligible_root: claim.eligible_root,
+      ephemeral_pubkey_x: claim.ephemeral_pubkey_x,
+      ephemeral_pubkey_y: claim.ephemeral_pubkey_y,
       nullifier_hash: claim.nullifier_hash,
       stealth_address: claim.stealth_address,
     },
@@ -306,8 +360,8 @@ export async function executeCampaignDeployment({
   fundingAmount,
   metadataHash,
 }) {
-  const protocol = new Contract(zusProtocolAbi, protocolAddress, walletAccount);
-  const token = new Contract(erc20Abi, payoutTokenAddress, walletAccount);
+  const protocol = new Contract(starknetZusProtocolAbi, protocolAddress, walletAccount);
+  const token = new Contract(starknetErc20Abi, payoutTokenAddress, walletAccount);
 
   const calls = [
     protocol.populate("create_campaign", {
@@ -370,19 +424,37 @@ export async function prepareRelayedClaim({
     claimantAddress,
     ...witnessSeedSignature,
   ]);
-  const stealthTweak = poseidonElements([
-    STEALTH_SEED_DOMAIN,
-    eligibleRoot,
+  const ephemeralSecret = randomScalarHex();
+  const ephemeralPubkey = ec.starkCurve.ProjectivePoint.BASE
+    .multiply(toBigIntFelt(ephemeralSecret))
+    .toAffine();
+  const ephemeralPubkeyX = toFeltHex(ephemeralPubkey.x);
+  const ephemeralPubkeyY = toFeltHex(ephemeralPubkey.y);
+  const stealthTweak = derivePrivateStealthTweak({
+    walletSecret,
     claimantAddress,
-    ...witnessSeedSignature,
-  ]);
+    messageDomain,
+    eligibleRoot,
+    ephemeralPubkeyX,
+    ephemeralPubkeyY,
+  });
+  const stealthPrivateKey = deriveStealthPrivateKey(walletSecret, stealthTweak);
 
   const claim = {
     claimant_address: claimantAddress,
     message_domain: toFeltHex(messageDomain),
     eligible_root: eligibleRoot,
+    ephemeral_pubkey_x: ephemeralPubkeyX,
+    ephemeral_pubkey_y: ephemeralPubkeyY,
     nullifier_hash: deriveNullifier(walletSecret, messageDomain),
-    stealth_address: deriveStealthAddress(walletSecret, stealthTweak),
+    stealth_address: deriveStealthAddress({
+      walletSecret,
+      claimantAddress,
+      messageDomain,
+      eligibleRoot,
+      ephemeralPubkeyX,
+      ephemeralPubkeyY,
+    }),
   };
 
   const authorizationTypedData = buildClaimAuthorizationTypedData(chainId, campaignId, claim);
@@ -391,10 +463,20 @@ export async function prepareRelayedClaim({
   return {
     campaign_id: campaignId,
     claim,
-    proof: [walletSecret, stealthTweak, toFeltHex(eligibleIndex), ...eligiblePath],
+    proof: [walletSecret, toFeltHex(eligibleIndex), ...eligiblePath],
     authorization: {
       signature: authorizationSignature,
       typed_data: authorizationTypedData,
+    },
+    local_recovery: {
+      wallet_secret: walletSecret,
+      claimant_address: claimantAddress,
+      message_domain: toFeltHex(messageDomain),
+      eligible_root: eligibleRoot,
+      ephemeral_pubkey_x: ephemeralPubkeyX,
+      ephemeral_pubkey_y: ephemeralPubkeyY,
+      stealth_private_key: stealthPrivateKey,
+      stealth_address: claim.stealth_address,
     },
   };
 }

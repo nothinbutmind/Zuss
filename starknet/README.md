@@ -10,7 +10,7 @@ Fresh Starknet/Cairo rebuild of the ZUS protocol inside `starknet/`, with no dep
 - nullifier tracking to prevent double claiming
 - Merkle proof utilities for eligibility verification
 - a metadata registry contract for campaign discovery
-- mock verifier and mock ERC20 contracts for local testing and integration
+- a real claim verifier wrapper plus a mock ERC20 for local testing
 
 ## Starknet design choices
 
@@ -19,14 +19,14 @@ This rebuild keeps the original protocol goals, but adapts them to Starknet prim
 - payouts are token-based, using an ERC20 dispatcher, because Starknet does not use EVM-style native `payable` flows
 - stealth recipients are Starknet `ContractAddress` values, which can be counterfactually derived offchain and funded before deployment
 - the protocol keeps only campaign configuration, balances, and spent nullifiers onchain
-- zk verification is abstracted behind `IZusClaimVerifier`, so a real Starknet verifier adapter can be dropped in later without changing core protocol state logic
+- zk verification is exposed through `IZusClaimVerifier`, with the onchain claim verifier wrapper delegating into the Cairo verifier logic
 
 ## Layout
 
-- `src/contracts/zus_protocol.cairo` - main protocol contract
-- `src/contracts/campaign_registry.cairo` - campaign metadata registry
-- `src/contracts/mock_verifier.cairo` - test verifier
-- `src/contracts/mock_erc20.cairo` - test token
+- `../contracts/starknet/zus_protocol.cairo` - main protocol contract
+- `../contracts/starknet/campaign_registry.cairo` - campaign metadata registry
+- `../contracts/starknet/claim_verifier.cairo` - onchain verifier wrapper
+- `../contracts/starknet/mock_erc20.cairo` - test token
 - `src/interfaces/` - Starknet interfaces
 - `src/libraries/` - claim hashing and Merkle helpers
 - `src/types.cairo` - shared structs
@@ -55,5 +55,4 @@ The Merkle helper library is included in this workspace so the prover/verifier s
 
 ## Tooling
 
-This workspace is structured to work with `scarb` and `snforge`, but those tools were not installed in the current environment when this rebuild was generated, so the contracts were written source-first and not compiled locally in this session.
-
+This workspace is structured to work with `scarb` and `snforge`, and the Cairo workspace has been compiled locally in this environment.

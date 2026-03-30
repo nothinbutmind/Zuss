@@ -10,6 +10,8 @@ pub struct HealthResponse {
 pub struct CreateCampaignRequest {
     pub name: String,
     pub campaign_creator_address: String,
+    #[serde(default)]
+    pub execution_chain: Option<String>,
     pub recipients: Vec<RecipientInput>,
 }
 
@@ -38,6 +40,8 @@ pub struct PublishedCampaign {
     pub name: String,
     pub campaign_creator_address: String,
     pub merkle_root: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub execution_chain: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -53,6 +57,8 @@ pub struct CampaignSummary {
     pub name: String,
     pub campaign_creator_address: String,
     pub merkle_root: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub execution_chain: Option<String>,
     pub leaf_count: usize,
     pub depth: usize,
     pub hash_algorithm: String,
@@ -86,6 +92,8 @@ pub struct ClaimPayloadResponse {
     pub onchain_campaign_id: String,
     pub name: String,
     pub campaign_creator_address: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub execution_chain: Option<String>,
     pub leaf_address: String,
     pub amount: String,
     pub index: usize,

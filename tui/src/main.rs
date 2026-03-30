@@ -30,6 +30,15 @@ use ratatui::{
     text::{Line, Span, Text},
     widgets::{Block, Borders, Clear, List, ListItem, Padding, Paragraph, Wrap},
 };
+use lambdaworks_crypto::hash::poseidon::{Poseidon, starknet::PoseidonCairoStark252};
+use lambdaworks_math::{
+    cyclic_group::IsGroup,
+    elliptic_curve::{
+        short_weierstrass::{curves::stark_curve::StarkCurve, point::ShortWeierstrassProjectivePoint},
+        traits::{FromAffine, IsEllipticCurve},
+    },
+    field::{element::FieldElement, fields::fft_friendly::stark_252_prime_field::Stark252PrimeField},
+};
 use num_bigint::{BigInt, BigUint, Sign};
 use reqwest::{StatusCode, blocking::Client};
 
@@ -62,6 +71,10 @@ const MVP_NOIR_STEALTH_TWEAK: [u8; 32] = [
 ];
 const BN254_FIELD_MODULUS_DECIMAL: &str =
     "21888242871839275222246405745257275088548364400416034343698204186575808495617";
+const STARKNET_ADDRESS_BITS: usize = 251;
+
+type StarkField = FieldElement<Stark252PrimeField>;
+type StarkPoint = ShortWeierstrassProjectivePoint<StarkCurve>;
 
 struct CampaignLookupResult {
     campaign: ApiCampaignSummary,
@@ -157,6 +170,7 @@ fn execute_action(form: &ActionForm) -> AppResult<CommandResult> {
         ActionKind::FilecoinTxExplorer => run_filecoin_tx_lookup(form),
         ActionKind::FilecoinTxClaimLookup => run_filecoin_tx_claim_lookup(form),
         ActionKind::GenerateZkWitness => run_generate_zk_witness(form),
+        ActionKind::RecoverStarknetStealth => run_recover_starknet_stealth(form),
         _ => {
             let args = build_command(form)?;
             run_cast_command(&args)
@@ -554,6 +568,9 @@ fn build_command(form: &ActionForm) -> AppResult<Vec<String>> {
         ActionKind::GenerateZkWitness => Err(AppError::message(
             "Prove + Claim is handled through the Noir plus protocol flow, not plain cast.",
         )),
+        ActionKind::RecoverStarknetStealth => Err(AppError::message(
+            "Recover Starknet Stealth is handled locally inside the TUI, not cast.",
+        )),
         ActionKind::ListAccounts => {
             let keystore_dir = normalize_path(form.value("keystore_dir"));
             let mut args = vec!["wallet".to_string(), "list".to_string()];
@@ -653,6 +670,7 @@ fn fallback_command_preview(form: &ActionForm) -> String {
                 form.value("leaf_address")
             )
         }
+        ActionKind::RecoverStarknetStealth => "local stealth key recovery".to_string(),
         _ => form.command_label.to_string(),
     }
 }
@@ -673,12 +691,24 @@ fn focus_fields_for_error(app: &mut App, message: &str) {
         Some("tx_hash")
     } else if lowered.contains("leaf address") {
         Some("leaf_address")
+    } else if lowered.contains("claimant address") {
+        Some("claimant_address")
     } else if lowered.contains("wallet address") {
         Some("wallet_address")
     } else if lowered.contains("wallet account") {
         Some("wallet_account")
+    } else if lowered.contains("wallet secret") {
+        Some("wallet_secret")
     } else if lowered.contains("saved account") || lowered.contains("account name") {
         Some("account_name")
+    } else if lowered.contains("message domain") {
+        Some("message_domain")
+    } else if lowered.contains("eligible root") {
+        Some("eligible_root")
+    } else if lowered.contains("ephemeral pubkey x") {
+        Some("ephemeral_pubkey_x")
+    } else if lowered.contains("ephemeral pubkey y") {
+        Some("ephemeral_pubkey_y")
     } else if lowered.contains("keystore path") {
         Some("keystore_path")
     } else if lowered.contains("circuit dir") {
@@ -998,6 +1028,110 @@ fn run_generate_zk_witness(form: &ActionForm) -> AppResult<CommandResult> {
         ),
         output,
         success: claim_result.success,
+    })
+}
+
+fn run_recover_starknet_stealth(form: &ActionForm) -> AppResult<CommandResult> {
+    let wallet_secret = parse_stark_felt(
+        &required_value(form, "wallet_secret", "Wallet secret is required.")?,
+        "Wallet secret",
+    )?;
+    if wallet_secret == StarkField::zero() {
+        return Err(AppError::message(
+            "Wallet secret must be non-zero for stealth recovery.",
+        ));
+    }
+
+    let claimant_address = parse_stark_felt(
+        &required_value(form, "claimant_address", "Claimant address is required.")?,
+        "Claimant address",
+    )?;
+    let message_domain = parse_stark_felt(
+        &required_value(form, "message_domain", "Message domain is required.")?,
+        "Message domain",
+    )?;
+    let eligible_root = parse_stark_felt(
+        &required_value(form, "eligible_root", "Eligible root is required.")?,
+        "Eligible root",
+    )?;
+    let ephemeral_pubkey_x = parse_stark_felt(
+        &required_value(form, "ephemeral_pubkey_x", "Ephemeral pubkey X is required.")?,
+        "Ephemeral pubkey X",
+    )?;
+    let ephemeral_pubkey_y = parse_stark_felt(
+        &required_value(form, "ephemeral_pubkey_y", "Ephemeral pubkey Y is required.")?,
+        "Ephemeral pubkey Y",
+    )?;
+
+    let _ephemeral_pubkey = StarkPoint::from_affine(
+        ephemeral_pubkey_x.clone(),
+        ephemeral_pubkey_y.clone(),
+    )
+    .map_err(|_| {
+        AppError::message("Ephemeral pubkey is not a valid point on the Stark curve.")
+    })?;
+
+    let generator = StarkCurve::generator();
+    let base_pubkey = generator
+        .operate_with_self(wallet_secret.representative())
+        .to_affine();
+    let stealth_tweak = derive_private_stealth_tweak_field(
+        &wallet_secret,
+        &claimant_address,
+        &message_domain,
+        &eligible_root,
+        &ephemeral_pubkey_x,
+        &ephemeral_pubkey_y,
+    );
+    let tweak_pubkey = generator
+        .operate_with_self(stealth_tweak.representative())
+        .to_affine();
+    let stealth_pubkey = base_pubkey.operate_with(&tweak_pubkey).to_affine();
+    let stealth_private_scalar = &wallet_secret + &stealth_tweak;
+
+    if stealth_private_scalar == StarkField::zero() {
+        return Err(AppError::message(
+            "Derived stealth spend scalar reduced to zero. Regenerate the claim locally.",
+        ));
+    }
+
+    let base_address = point_to_contract_address_hex(base_pubkey.x(), base_pubkey.y());
+    let stealth_address = point_to_contract_address_hex(stealth_pubkey.x(), stealth_pubkey.y());
+    if base_address == stealth_address {
+        return Err(AppError::message(
+            "Stealth recovery collapsed back to the base address.",
+        ));
+    }
+
+    let mut output = String::new();
+    let _ = writeln!(output, "Recovered Starknet stealth material locally.");
+    let _ = writeln!(output);
+    let _ = writeln!(output, "Base pubkey X: {}", stark_field_to_hex(base_pubkey.x()));
+    let _ = writeln!(output, "Base pubkey Y: {}", stark_field_to_hex(base_pubkey.y()));
+    let _ = writeln!(output, "Base address: {base_address}");
+    let _ = writeln!(output, "Private stealth tweak: {}", stark_field_to_hex(&stealth_tweak));
+    let _ = writeln!(
+        output,
+        "Stealth private scalar: {}",
+        stark_field_to_hex(&stealth_private_scalar)
+    );
+    let _ = writeln!(output, "Stealth pubkey X: {}", stark_field_to_hex(stealth_pubkey.x()));
+    let _ = writeln!(output, "Stealth pubkey Y: {}", stark_field_to_hex(stealth_pubkey.y()));
+    let _ = writeln!(output, "Stealth address: {stealth_address}");
+    let _ = writeln!(output);
+    let _ = writeln!(
+        output,
+        "Keep the wallet secret and stealth private scalar local. The relayer only needs the public claim inputs."
+    );
+    let _ = writeln!(
+        output,
+        "This action mirrors the Cairo derivation: tweak = Poseidon(wallet_secret, claimant_address, message_domain, eligible_root, ephemeral_pubkey_x, ephemeral_pubkey_y)."
+    );
+
+    Ok(CommandResult {
+        command_preview: "local stealth key recovery".to_string(),
+        output,
+        success: true,
     })
 }
 
@@ -1647,6 +1781,95 @@ fn generate_auto_witness_secrets() -> AppResult<AutoWitnessSecrets> {
         message: MVP_NOIR_MESSAGE,
         stealth_tweak: MVP_NOIR_STEALTH_TWEAK,
     })
+}
+
+fn parse_stark_felt(raw: &str, label: &str) -> AppResult<StarkField> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::message(format!("{label} is required.")));
+    }
+
+    let integer = parse_biguint_auto(trimmed, label)?;
+    let normalized_hex = format!("0x{}", integer.to_str_radix(16));
+    StarkField::from_hex(&normalized_hex).map_err(|_| {
+        AppError::message(format!("{label} must be a valid felt252 value: {trimmed}"))
+    })
+}
+
+fn parse_biguint_auto(raw: &str, label: &str) -> AppResult<BigUint> {
+    let trimmed = raw.trim();
+    let (radix, digits) = if let Some(hex) = trimmed.strip_prefix("0x").or_else(|| trimmed.strip_prefix("0X")) {
+        (16, hex)
+    } else {
+        (10, trimmed)
+    };
+
+    BigUint::parse_bytes(digits.as_bytes(), radix).ok_or_else(|| {
+        AppError::message(format!("{label} must be hex (0x...) or decimal digits."))
+    })
+}
+
+fn stark_field_to_hex(value: &StarkField) -> String {
+    format!("0x{}", value.to_hex().to_ascii_lowercase())
+}
+
+fn stark_short_string_field(value: &str) -> StarkField {
+    let hex = format!("0x{}", bytes_to_hex(value.as_bytes()));
+    StarkField::from_hex(&hex).expect("short string constant should fit into felt252")
+}
+
+fn derive_private_stealth_tweak_field(
+    wallet_secret: &StarkField,
+    claimant_address: &StarkField,
+    message_domain: &StarkField,
+    eligible_root: &StarkField,
+    ephemeral_pubkey_x: &StarkField,
+    ephemeral_pubkey_y: &StarkField,
+) -> StarkField {
+    let tweak_domain = stark_short_string_field("STEALTH_TWEAK");
+    let zero_domain = stark_short_string_field("STEALTH_ZERO");
+    let mut candidate = PoseidonCairoStark252::hash_many(&[
+        tweak_domain,
+        wallet_secret.clone(),
+        claimant_address.clone(),
+        message_domain.clone(),
+        eligible_root.clone(),
+        ephemeral_pubkey_x.clone(),
+        ephemeral_pubkey_y.clone(),
+    ]);
+
+    while candidate == StarkField::zero() {
+        candidate = PoseidonCairoStark252::hash_many(&[
+            zero_domain.clone(),
+            candidate.clone(),
+        ]);
+    }
+
+    candidate
+}
+
+fn point_to_contract_address_hex(x: &StarkField, y: &StarkField) -> String {
+    let address_domain = stark_short_string_field("STEALTH_ADDR");
+    let retry_domain = stark_short_string_field("STEALTH_RETRY");
+    let address_upper_bound = BigUint::from(1_u8) << STARKNET_ADDRESS_BITS;
+    let mut candidate = PoseidonCairoStark252::hash_many(&[
+        address_domain,
+        x.clone(),
+        y.clone(),
+    ]);
+
+    loop {
+        let candidate_value = parse_biguint_auto(&stark_field_to_hex(&candidate), "Stealth address")
+            .expect("generated stark felt should parse");
+        if candidate_value < address_upper_bound {
+            return stark_field_to_hex(&candidate);
+        }
+
+        candidate = PoseidonCairoStark252::hash_many(&[
+            retry_domain.clone(),
+            candidate.clone(),
+        ]);
+    }
 }
 
 fn bytes_to_hex(bytes: &[u8]) -> String {

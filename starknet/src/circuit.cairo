@@ -14,9 +14,10 @@ pub struct CircuitOutputs {
 ///
 /// Inputs:
 /// - `wallet_secret`: private wallet scalar used to derive the claimant public key
-/// - `stealth_tweak`: private one-time scalar used to derive the stealth destination
 /// - `message`: public campaign/domain message
 /// - `eligible_root`: public Merkle root committed by the campaign
+/// - `ephemeral_pubkey_x` / `ephemeral_pubkey_y`: public ephemeral point used to privately derive
+///   the stealth tweak without sending that tweak directly
 /// - `eligible_path`: private Merkle authentication path
 /// - `eligible_index`: private leaf index
 ///
@@ -25,10 +26,11 @@ pub struct CircuitOutputs {
 /// - `stealth_address`: one-time payout address derived from the wallet pubkey and tweak
 pub fn main(
     wallet_secret: felt252,
-    stealth_tweak: felt252,
     claimant_address: ContractAddress,
     message: felt252,
     eligible_root: felt252,
+    ephemeral_pubkey_x: felt252,
+    ephemeral_pubkey_y: felt252,
     eligible_path: Span<felt252>,
     eligible_index: usize,
 ) -> CircuitOutputs {
@@ -52,8 +54,19 @@ pub fn main(
     // the same campaign.
     let nullifier = derive_nullifier(wallet_secret, message);
 
-    // Derive the one-time payout destination from the wallet pubkey and the private stealth tweak.
-    let stealth_address = derive_stealth_address(pubkey_x, pubkey_y, stealth_tweak);
+    // Derive the one-time payout destination from the wallet pubkey plus an ephemeral public key.
+    // The actual tweak stays implicit and is recomputed inside the circuit from the private wallet
+    // secret plus the public claim context.
+    let stealth_address = derive_stealth_address(
+        pubkey_x,
+        pubkey_y,
+        wallet_secret,
+        claimant_address,
+        message,
+        eligible_root,
+        ephemeral_pubkey_x,
+        ephemeral_pubkey_y,
+    );
 
     CircuitOutputs { nullifier, stealth_address }
 }
