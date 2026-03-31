@@ -88,6 +88,77 @@ export function encodeMessageDomain(message) {
   return shortString.encodeShortString(message.trim());
 }
 
+function collectErrorStrings(value, output, seen = new WeakSet()) {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed && trimmed !== "[object Object]") {
+      output.push(trimmed);
+    }
+    return;
+  }
+
+  if (!value || typeof value !== "object") {
+    return;
+  }
+
+  if (seen.has(value)) {
+    return;
+  }
+  seen.add(value);
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectErrorStrings(item, output, seen);
+    }
+    return;
+  }
+
+  for (const key of [
+    "shortMessage",
+    "message",
+    "details",
+    "reason",
+    "description",
+    "error",
+    "cause",
+    "data",
+    "rpc",
+  ]) {
+    if (key in value) {
+      collectErrorStrings(value[key], output, seen);
+    }
+  }
+
+  for (const nested of Object.values(value)) {
+    collectErrorStrings(nested, output, seen);
+  }
+}
+
+function formatStarknetExecutionError(error, contextLabel) {
+  const messages = [];
+  collectErrorStrings(error, messages);
+
+  const uniqueMessages = [...new Set(messages)].filter((value) => {
+    const lowered = value.toLowerCase();
+    return lowered !== "error" && lowered !== "rpc error";
+  });
+
+  if (uniqueMessages.length > 0) {
+    return `${contextLabel}: ${uniqueMessages[0]}`;
+  }
+
+  try {
+    const serialized = JSON.stringify(error, null, 2);
+    if (serialized && serialized !== "{}") {
+      return `${contextLabel}: ${serialized}`;
+    }
+  } catch {
+    // Fall through to generic fallback.
+  }
+
+  return `${contextLabel}: Unknown Starknet wallet or RPC error.`;
+}
+
 export function toFeltHex(value) {
   const asBigInt =
     typeof value === "bigint"
@@ -304,7 +375,18 @@ export async function executeCampaignDeployment({
     }),
   ];
 
-  const response = await walletAccount.execute(calls);
-  await getRpcProvider(rpcUrl).waitForTransaction(response.transaction_hash);
-  return response.transaction_hash;
+  try {
+    const response = await walletAccount.execute(calls);
+    try {
+      await getRpcProvider(rpcUrl).waitForTransaction(response.transaction_hash);
+    } catch (error) {
+      throw new Error(
+        formatStarknetExecutionError(error, "Starknet transaction submission failed after signing"),
+      );
+    }
+
+    return response.transaction_hash;
+  } catch (error) {
+    throw new Error(formatStarknetExecutionError(error, "Starknet create campaign failed"));
+  }
 }

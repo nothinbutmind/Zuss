@@ -111,6 +111,7 @@ async function readJson(response) {
   if (!response.ok) {
     throw new Error(
       payload?.message ||
+        payload?.error?.message ||
         payload?.error ||
         payload?.details ||
         text ||
