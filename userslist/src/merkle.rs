@@ -597,16 +597,18 @@ fn recipients_len(claims: &[PreparedClaim]) -> usize {
     claims.len()
 }
 
-fn decode_address_bytes(address: &str) -> Result<[u8; 20], AppError> {
+fn decode_address_bytes(address: &str) -> Result<Vec<u8>, AppError> {
     let decoded = hex::decode(&address[2..])
-        .map_err(|_| AppError::bad_request(format!("invalid Ethereum address hex: {}", address)))?;
+        .map_err(|_| AppError::bad_request(format!("invalid hex address: {}", address)))?;
 
-    <[u8; 20]>::try_from(decoded.as_slice()).map_err(|_| {
-        AppError::bad_request(format!(
-            "Ethereum address must decode to 20 bytes: {}",
+    if decoded.is_empty() || decoded.len() > 32 {
+        return Err(AppError::bad_request(format!(
+            "hex address must decode to between 1 and 32 bytes: {}",
             address
-        ))
-    })
+        )));
+    }
+
+    Ok(decoded)
 }
 
 fn parse_big_uint(value: &str) -> Result<BigUint, AppError> {

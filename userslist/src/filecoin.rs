@@ -54,7 +54,6 @@ pub struct RegisteredClaim {
 #[derive(Debug, Clone)]
 struct RegistryCampaignMeta {
     onchain_campaign_id: String,
-    creator: Address,
     merkle_root: String,
     leaf_count: usize,
     depth: usize,
@@ -116,18 +115,11 @@ impl FilecoinClient {
     ) -> Result<FilecoinUpload, AppError> {
         let wallet = self.require_wallet()?;
         let registry_address = self.require_registry_address()?;
-        let creator = parse_runtime_address(
+        let creator = registry_address_from_hex(
             &summary.campaign_creator_address,
             "campaign_creator_address",
         )?;
         let from = wallet.address();
-        if from != creator {
-            return Err(AppError::bad_request(format!(
-                "campaign_creator_address {} must match the PRIVATE_KEY address {} when registering in Zus protocol",
-                summary.campaign_creator_address,
-                format_address(from)
-            )));
-        }
 
         let payload = build_published_payload(summary, claims);
         let payload_json = serde_json::to_string(&payload).map_err(|error| {
@@ -169,7 +161,7 @@ impl FilecoinClient {
                 campaign_id: payload_log.payload.campaign.campaign_id.clone(),
                 onchain_campaign_id: meta.onchain_campaign_id.clone(),
                 name: payload_log.payload.campaign.name.clone(),
-                campaign_creator_address: format_address(meta.creator),
+                campaign_creator_address: payload_log.payload.campaign.campaign_creator_address.clone(),
                 merkle_root: meta.merkle_root.clone(),
                 execution_chain: payload_log.payload.campaign.execution_chain.clone(),
                 leaf_count: meta.leaf_count,
@@ -191,7 +183,7 @@ impl FilecoinClient {
     ) -> Result<RegisteredClaim, AppError> {
         let registry_address = self.require_registry_address()?;
         let campaign_key = campaign_key_for_id(onchain_campaign_id);
-        let recipient = parse_runtime_address(leaf_address, "leaf address")?;
+        let recipient = registry_address_from_hex(leaf_address, "leaf address")?;
         let call = encode_contract_call(
             "getClaim(bytes32,address)",
             vec![
@@ -263,7 +255,7 @@ impl FilecoinClient {
                 campaign_id: payload_log.payload.campaign.campaign_id.clone(),
                 onchain_campaign_id: meta.onchain_campaign_id.clone(),
                 name: payload_log.payload.campaign.name.clone(),
-                campaign_creator_address: format_address(meta.creator),
+                campaign_creator_address: payload_log.payload.campaign.campaign_creator_address.clone(),
                 merkle_root: meta.merkle_root.clone(),
                 execution_chain: payload_log.payload.campaign.execution_chain.clone(),
                 leaf_count: meta.leaf_count,
@@ -284,7 +276,7 @@ impl FilecoinClient {
         creator: &str,
     ) -> Result<Vec<CampaignSummary>, AppError> {
         let registry_address = self.require_registry_address()?;
-        let creator = parse_runtime_address(creator, "campaign creator address")?;
+        let creator = registry_address_from_hex(creator, "campaign creator address")?;
         let call = encode_contract_call(
             "getCreatorCampaignKeys(address)",
             vec![Token::Address(creator)],
@@ -320,7 +312,7 @@ impl FilecoinClient {
                 campaign_id: payload_log.payload.campaign.campaign_id.clone(),
                 onchain_campaign_id: meta.onchain_campaign_id.clone(),
                 name: payload_log.payload.campaign.name.clone(),
-                campaign_creator_address: format_address(meta.creator),
+                campaign_creator_address: payload_log.payload.campaign.campaign_creator_address.clone(),
                 merkle_root: meta.merkle_root.clone(),
                 execution_chain: payload_log.payload.campaign.execution_chain.clone(),
                 leaf_count: meta.leaf_count,
@@ -458,7 +450,6 @@ impl FilecoinClient {
 
         Ok(RegistryCampaignMeta {
             onchain_campaign_id: expect_string(&values[0], "campaign id")?,
-            creator: expect_address(&values[1], "creator")?,
             merkle_root: expect_string(&values[2], "merkle root")?,
             leaf_count: usize::try_from(expect_uint(&values[3], "leaf count")?.as_u64())
                 .map_err(|_| AppError::internal("leaf count does not fit into usize"))?,
@@ -686,7 +677,7 @@ fn encode_registry_create_campaign(
     let mut amounts = Vec::with_capacity(claims.len());
 
     for claim in claims {
-        recipients.push(Token::Address(parse_runtime_address(
+        recipients.push(Token::Address(registry_address_from_hex(
             &claim.leaf_address,
             "leaf address",
         )?));
@@ -791,13 +782,6 @@ fn validate_registry_payload(
             payload.campaign.merkle_root, meta.merkle_root
         )));
     }
-    if format_address(meta.creator) != payload.campaign.campaign_creator_address {
-        return Err(AppError::internal(format!(
-            "Filecoin payload creator {} does not match the Zus protocol creator {}",
-            payload.campaign.campaign_creator_address,
-            format_address(meta.creator)
-        )));
-    }
     if payload.recipients.len() != meta.leaf_count {
         return Err(AppError::internal(format!(
             "Filecoin payload recipient count {} does not match the Zus protocol count {}",
@@ -856,14 +840,44 @@ fn parse_hex_u256(value: &Value, method: &str) -> Result<U256, AppError> {
     })
 }
 
-fn parse_runtime_address(value: &str, label: &str) -> Result<Address, AppError> {
-    Address::from_str(value).map_err(|error| {
-        AppError::bad_request(format!("failed to parse {label} `{value}`: {error}"))
-    })
-}
+fn registry_address_from_hex(value: &str, label: &str) -> Result<Address, AppError> {
+    let trimmed = value.trim();
+    let without_prefix = trimmed.strip_prefix("0x").ok_or_else(|| {
+        AppError::bad_request(format!("invalid hex {label} format: {trimmed}"))
+    })?;
 
-fn format_address(address: Address) -> String {
-    format!("{:#x}", address)
+    if !without_prefix
+        .chars()
+        .all(|character| character.is_ascii_hexdigit())
+    {
+        return Err(AppError::bad_request(format!(
+            "invalid hex {label}: {trimmed}"
+        )));
+    }
+
+    if without_prefix.len() > 64 {
+        return Err(AppError::bad_request(format!(
+            "{label} must fit within 32 bytes: {trimmed}"
+        )));
+    }
+
+    let normalized = format!("{:0>64}", without_prefix.to_ascii_lowercase());
+    let address_hex = if normalized.starts_with("000000000000000000000000") {
+        normalized[24..].to_string()
+    } else {
+        let bytes = hex::decode(&normalized).map_err(|error| {
+            AppError::bad_request(format!(
+                "failed to decode {label} `{trimmed}` as hex bytes: {error}"
+            ))
+        })?;
+        hex::encode(&keccak256(bytes)[12..])
+    };
+
+    Address::from_str(&format!("0x{address_hex}")).map_err(|error| {
+        AppError::bad_request(format!(
+            "failed to map {label} `{value}` into a Filecoin/EVM address: {error}"
+        ))
+    })
 }
 
 fn expect_string(token: &Token, label: &str) -> Result<String, AppError> {
@@ -871,15 +885,6 @@ fn expect_string(token: &Token, label: &str) -> Result<String, AppError> {
         Token::String(value) => Ok(value.clone()),
         _ => Err(AppError::internal(format!(
             "expected {label} to decode as a string"
-        ))),
-    }
-}
-
-fn expect_address(token: &Token, label: &str) -> Result<Address, AppError> {
-    match token {
-        Token::Address(value) => Ok(*value),
-        _ => Err(AppError::internal(format!(
-            "expected {label} to decode as an address"
         ))),
     }
 }
