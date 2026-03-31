@@ -178,6 +178,11 @@ function toBigIntFelt(value) {
   return BigInt(typeof value === "string" ? value : toFeltHex(value));
 }
 
+function normalizeNumericFelt(value) {
+  const normalized = toBigIntFelt(value) % STARK_FIELD_PRIME;
+  return normalized < 0n ? normalized + STARK_FIELD_PRIME : normalized;
+}
+
 function nonZeroFeltHex(value) {
   const normalized = toBigIntFelt(value) % STARK_FIELD_PRIME;
   return toFeltHex(normalized === 0n ? 1n : normalized);
@@ -295,7 +300,7 @@ export async function coerceTextOrNumericToFelt(value) {
   }
 
   if (/^(0x[0-9a-fA-F]+|[0-9]+)$/.test(trimmed)) {
-    return toFeltHex(trimmed);
+    return toFeltHex(normalizeNumericFelt(trimmed));
   }
 
   return hashTextToFelt(trimmed);
