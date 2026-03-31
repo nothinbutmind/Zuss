@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { appConfig, getNetworkName, resolveApiUrl } from "./config.js";
 import {
-  CHAIN_OPTIONS,
   buildWalletAccountForChain,
   connectWalletForChain,
   normalizeChainKey,
@@ -20,7 +19,7 @@ const LEGACY_VAULT_HASH = "#/vault";
 const PROTOCOLS_HASH = "#/protocols";
 const DOCS_URL = "https://deepwiki.com/nothinbutmind/ZUS_Protocol";
 const SUBTITLE =
-  "Zus unifies Filecoin, Flow EVM, and Starknet in one app. Campaign data and Merkle trees stay off-chain in the shared Rust plus Filecoin layer, the browser prepares the user flow, and transactions are routed to the selected on-chain contracts.";
+  "Zus unifies Filecoin and Starknet in one app. Campaign data and Merkle trees stay off-chain in the shared Rust plus Filecoin layer, the browser prepares the private claim flow, and transactions are relayed to Starknet Cairo contracts.";
 
 const EMPTY_WALLET = {
   account: "",
@@ -152,13 +151,13 @@ function TypewriterSub() {
 
   const highlight = (value) => {
     const parts = value.split(
-      /(Filecoin, Flow EVM, and Starknet|campaign data and Merkle trees stay off-chain|the browser prepares the user flow|transactions are routed to the selected on-chain contracts)/g,
+      /(Filecoin and Starknet|campaign data and Merkle trees stay off-chain|the browser prepares the private claim flow|transactions are relayed to Starknet Cairo contracts)/g,
     );
     return parts.map((part, index) =>
-      part === "Filecoin, Flow EVM, and Starknet" ||
+      part === "Filecoin and Starknet" ||
       part === "campaign data and Merkle trees stay off-chain" ||
-      part === "the browser prepares the user flow" ||
-      part === "transactions are routed to the selected on-chain contracts" ? (
+      part === "the browser prepares the private claim flow" ||
+      part === "transactions are relayed to Starknet Cairo contracts" ? (
         <span key={index} style={{ color: "#00ddb0" }}>
           {part}
         </span>
@@ -1013,19 +1012,19 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
                 tag: "OFFCHAIN_LAYER",
                 title: "FILECOIN + RUST API",
                 desc:
-                  "Campaign metadata, recipient sets, and Merkle trees stay off-chain here as the shared source of truth for every chain.",
-              },
-              {
-                tag: "FLOW_EVM_PATH",
-                title: "FLOW EVM CONTRACTS",
-                desc:
-                  "Pick Flow EVM in the chain selector when you want the app to route to the Flow EVM verifier and ZusProtocol contracts.",
+                  "Campaign metadata, recipient sets, and Merkle trees stay off-chain here as the shared source of truth for the Starknet payment path.",
               },
               {
                 tag: "STARKNET_PATH",
                 title: "STARKNET CAIRO CONTRACTS",
                 desc:
-                  "Pick Starknet in the chain selector when you want the app to route to the Cairo contracts, relayed claims, and stealth recovery flow.",
+                  "The app routes claims to the Cairo contracts, relayed Starknet submission flow, and stealth recovery path.",
+              },
+              {
+                tag: "PRIVATE_PAYMENT_PATH",
+                title: "RELAYER + STEALTH PAYOUTS",
+                desc:
+                  "Users prepare the claim locally, the relayer broadcasts on Starknet, and funds land on a one-time stealth address.",
               },
             ].map((item) => (
               <div
@@ -1103,12 +1102,12 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
           ENCRYPTED BY DESIGN.
         </h2>
         <p style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 13, color: "#3a6660", marginBottom: 40, lineHeight: 1.9 }}>
-          Pick a chain visibly from the top-right selector, keep the campaign and Merkle data off-chain, and route the final execution step to Flow EVM contracts or Starknet Cairo contracts.
+          Keep the campaign and Merkle data off-chain, prepare the claim in the browser, and relay the final execution step to Starknet Cairo contracts.
         </p>
         <div className="feature-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 22 }}>
           <FeatCard tag="// CONFIDENTIAL_AIRDROP" title="DROP TO THE RIGHT WALLETS. TELL NO ONE ELSE." desc="Distribute tokens to verified holders without exposing the recipient list or individual balances." extra="+ LIVE CAMPAIGNS >" delay={0} />
-          <FeatCard tag="// CHAIN_SELECTOR" title="ONE APP. TWO EXECUTION CHAINS." desc="The chain selector makes it explicit whether the app is about to route to the Flow EVM verifier plus ZusProtocol contracts or the Starknet Cairo contracts." delay={120} />
-          <FeatCard tag="// SMART_CONTRACT_HANDOFF" title="KEEP DATA OFFCHAIN. EXECUTE ONCHAIN." desc="The app creates the campaign and Merkle tree in the shared Rust plus Filecoin layer first, then routes the execution step to Flow EVM or Starknet contracts." extra="FILECOIN + APP + CHAIN" delay={240} />
+          <FeatCard tag="// STARKNET_PATH" title="ONE APP. ONE PRIVATE EXECUTION PATH." desc="The active on-chain path is Starknet, where Cairo contracts enforce nullifiers, Merkle checks, and private stealth payouts." delay={120} />
+          <FeatCard tag="// SMART_CONTRACT_HANDOFF" title="KEEP DATA OFFCHAIN. EXECUTE ON STARKNET." desc="The app creates the campaign and Merkle tree in the shared Rust plus Filecoin layer first, then routes execution to Starknet through the relayer." extra="FILECOIN + APP + STARKNET" delay={240} />
         </div>
       </section>
 
@@ -1119,9 +1118,9 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
         </h2>
         <div style={{ width: 36, height: 2, background: "#00ffc8", margin: "10px 0 40px", boxShadow: "0 0 8px #00ffc8" }} />
         <div style={{ display: "flex", flexDirection: "column", gap: 22, maxWidth: 1280 }}>
-          <HowStep dot="1" title="CHOOSE FLOW OR STARKNET" desc="Use the chain selector first so the app knows which wallet, contract set, relayer path, and explorer link to use." delay={0} />
-          <HowStep dot="2" title="KEEP CAMPAIGN DATA OFFCHAIN" desc="The app posts campaign metadata and recipients into the shared Rust plus Filecoin layer, which builds and serves the Merkle tree for both chains." delay={150} />
-          <HowStep dot="3" title="ROUTE TO THE RIGHT CONTRACTS" desc="After the off-chain data is ready, the app routes to either the Flow EVM verifier plus ZusProtocol contracts or the Starknet Cairo claim path." delay={300} />
+          <HowStep dot="1" title="CONNECT STARKNET WALLET" desc="Connect Argent X or Braavos so the app can prepare a claimant-bound private payment flow." delay={0} />
+          <HowStep dot="2" title="KEEP CAMPAIGN DATA OFFCHAIN" desc="The app posts campaign metadata and recipients into the shared Rust plus Filecoin layer, which builds and serves the Merkle tree." delay={150} />
+          <HowStep dot="3" title="RELAY TO STARKNET" desc="After the off-chain data is ready, the browser prepares the claim package and the relayer submits the final Cairo transaction." delay={300} />
         </div>
       </section>
 
@@ -1133,7 +1132,7 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
             OPERATIONAL USE CASES
           </h2>
           <div className="use-cases-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 22, maxWidth: 1400, margin: "0 auto" }}>
-            <UseCard title="PRIVATE AIRDROPS" desc="Store allowlists and Merkle data off-chain, then choose Flow EVM or Starknet for the on-chain payout path." delay={0} />
+            <UseCard title="PRIVATE AIRDROPS" desc="Store allowlists and Merkle data off-chain, then send the on-chain payout path through Starknet." delay={0} />
             <UseCard title="LOYALTY CAMPAIGNS" desc="Run repeated reward drops while keeping the public dashboard free of full recipient disclosure." delay={100} />
             <UseCard title="GATED REBATES" desc="Use the same flow for consumer cashback or merchant promotions with a creator-controlled contract deployment." delay={200} />
             <UseCard title="STEALTH CLAIM SYSTEMS" desc="Use Starknet when you want the browser-based Cairo relayer flow and local stealth recovery note download." delay={300} />
@@ -1203,9 +1202,8 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
 
 export default function App() {
   const [route, setRoute] = useState(getCurrentRoute);
-  const [selectedChain, setSelectedChain] = useState("starknet");
+  const selectedChain = "starknet";
   const [walletSessions, setWalletSessions] = useState({
-    flow_evm: { ...EMPTY_WALLET },
     starknet: { ...EMPTY_WALLET },
   });
   const [selectedCampaignId, setSelectedCampaignId] = useState(getSelectedCampaignId);
@@ -1272,10 +1270,9 @@ export default function App() {
 
     const reconnectWallet = async () => {
       try {
-        const [starknetSession, flowSession] = await Promise.all([
-          connectWalletForChain("starknet", appConfig, { silent: true }).catch(() => null),
-          connectWalletForChain("flow_evm", appConfig, { silent: true }).catch(() => null),
-        ]);
+        const starknetSession = await connectWalletForChain("starknet", appConfig, {
+          silent: true,
+        }).catch(() => null);
 
         if (!cancelled) {
           setWalletSessions((current) => ({
@@ -1291,17 +1288,6 @@ export default function App() {
                   error: "",
                 }
               : current.starknet,
-            flow_evm: flowSession?.address
-              ? {
-                  ...current.flow_evm,
-                  account: flowSession.address,
-                  chainId: flowSession.chainId,
-                  walletProvider: flowSession.walletProvider,
-                  walletAccount: flowSession.walletAccount,
-                  walletName: flowSession.walletName,
-                  error: "",
-                }
-              : current.flow_evm,
           }));
         }
       } catch {
@@ -1393,11 +1379,7 @@ export default function App() {
     try {
       const session = await connectWalletForChain(selectedChain, appConfig);
       if (!session?.address) {
-        throw new Error(
-          selectedChain === "flow_evm"
-            ? "No Flow EVM wallet connected."
-            : "No Starknet wallet connected. Install Argent X or Braavos.",
-        );
+        throw new Error("No Starknet wallet connected. Install Argent X or Braavos.");
       }
 
       setWalletSessions((current) => ({
@@ -1433,12 +1415,8 @@ export default function App() {
     const campaignChain = normalizeChainKey(campaign.execution_chain || selectedChain);
     return campaignChain === selectedChain;
   });
-  const selectedChainLabel =
-    CHAIN_OPTIONS.find((option) => option.key === selectedChain)?.label || selectedChain;
-  const selectedWalletHint =
-    selectedChain === "starknet"
-      ? "Argent X / Braavos"
-      : "Flow EVM wallet";
+  const selectedChainLabel = "Starknet";
+  const selectedWalletHint = "Argent X / Braavos";
   const chainSelector = (
     <div
       style={{
@@ -1466,7 +1444,7 @@ export default function App() {
             marginBottom: 6,
           }}
         >
-          CHAIN SELECTOR
+          ACTIVE NETWORK
         </div>
         <div
           style={{
@@ -1492,31 +1470,6 @@ export default function App() {
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 8 }}>
-        {CHAIN_OPTIONS.map((option) => {
-          const active = option.key === selectedChain;
-          return (
-            <button
-              key={option.key}
-              onClick={() => setSelectedChain(option.key)}
-              style={{
-                flex: 1,
-                fontFamily: "'Share Tech Mono',monospace",
-                fontSize: 10,
-                letterSpacing: 1.6,
-                padding: "9px 12px",
-                border: `1px solid ${active ? "#00ffc8" : "rgba(0,255,200,.12)"}`,
-                background: active ? "rgba(0,255,200,.14)" : "transparent",
-                color: active ? "#00ffc8" : "#4a7a72",
-                cursor: "pointer",
-              }}
-            >
-              {option.label}
-            </button>
-          );
-        })}
-      </div>
-
       <div
         style={{
           fontFamily: "'Share Tech Mono',monospace",
@@ -1526,9 +1479,7 @@ export default function App() {
           lineHeight: 1.7,
         }}
       >
-        {selectedChain === "starknet"
-          ? "Starknet mode uses the Cairo contracts, relayed claims, and stealth recovery note download."
-          : "Flow EVM mode routes to the Flow verifier and ZusProtocol contracts with the same shared Filecoin campaign data."}
+        Starknet mode uses the Cairo contracts, relayed claims, and stealth recovery note download.
       </div>
       <a
         href={DOCS_URL}

@@ -12,15 +12,14 @@ use std::{
 use crate::error::{AppError, AppResult};
 use crate::types::{
     ActionForm, ActionKind, ApiCampaignSummary, ApiClaimPayload, ApiFilecoinCampaignResponse, App,
-    AppTerminal, CommandResult, Focus, default_api_base_url, default_bb_crs_path,
-    default_circuit_dir, default_proof_output_dir, default_protocol_address, default_rpc_url,
-    default_verifier_vk_path,
+    AppTerminal, CommandResult, Focus,
 };
 use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind},
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
+use lambdaworks_crypto::hash::pedersen::{Pedersen, PedersenStarkCurve};
 use ratatui::{
     Frame, Terminal,
     backend::CrosstermBackend,
@@ -40,6 +39,7 @@ use lambdaworks_math::{
     field::{element::FieldElement, fields::fft_friendly::stark_252_prime_field::Stark252PrimeField},
 };
 use num_bigint::{BigInt, BigUint, Sign};
+use rand::{RngCore, rngs::OsRng};
 use reqwest::{StatusCode, blocking::Client};
 
 const LOGO: &[&str] = &[
@@ -111,14 +111,10 @@ impl App {
 
         match execute_action(self.current_form()) {
             Ok(result) => {
-                let auto_filled_address = if matches!(
-                    action_kind,
-                    ActionKind::CheckAddress
-                        | ActionKind::CreateWallet
-                        | ActionKind::GenerateZkWitness
-                ) && result.success
+                let auto_filled_address = if matches!(action_kind, ActionKind::CheckAddress)
+                    && result.success
                 {
-                    extract_wallet_address(&result.output)
+                    extract_starknet_address(&result.output)
                 } else {
                     None
                 };
@@ -136,12 +132,11 @@ impl App {
                 };
 
                 if let Some(address) = auto_filled_address {
-                    self.set_form_field_value(
-                        ActionKind::CampaignExplorer,
-                        "wallet_address",
-                        address,
-                    );
-                    self.status = "Completed and copied address into Campaign Explorer".to_string();
+                    self.set_form_field_value(ActionKind::CampaignExplorer, "wallet_address", address.clone());
+                    self.set_form_field_value(ActionKind::GenerateZkWitness, "claimant_address", address);
+                    self.status =
+                        "Completed and copied the Starknet address into the explorer and claim prep tools"
+                            .to_string();
                 }
 
                 if action_kind == ActionKind::CreateWallet
@@ -169,8 +164,9 @@ fn execute_action(form: &ActionForm) -> AppResult<CommandResult> {
         ActionKind::CampaignExplorer => run_campaign_lookup(form),
         ActionKind::FilecoinTxExplorer => run_filecoin_tx_lookup(form),
         ActionKind::FilecoinTxClaimLookup => run_filecoin_tx_claim_lookup(form),
-        ActionKind::GenerateZkWitness => run_generate_zk_witness(form),
+        ActionKind::GenerateZkWitness => run_prepare_starknet_claim(form),
         ActionKind::RecoverStarknetStealth => run_recover_starknet_stealth(form),
+        ActionKind::CheckAddress => run_derive_starknet_address(form),
         _ => {
             let args = build_command(form)?;
             run_cast_command(&args)
@@ -265,8 +261,8 @@ fn render(frame: &mut Frame, app: &App) {
 fn render_hero(frame: &mut Frame, area: Rect, compact: bool) {
     let hero_block = Block::default()
         .title(Line::from(vec![
-            Span::styled(" ZUS WALLET ARCADE ", Style::default().fg(Color::Yellow)),
-            Span::raw(" ratatui x Foundry cast "),
+            Span::styled(" ZUS STARKNET ARCADE ", Style::default().fg(Color::Yellow)),
+            Span::raw(" ratatui x Filecoin + Starknet "),
         ]))
         .title_alignment(Alignment::Center)
         .borders(Borders::ALL)
@@ -358,9 +354,9 @@ fn render_actions(frame: &mut Frame, area: Rect, app: &App) {
         .collect::<Vec<_>>();
 
     let title = if app.focus == Focus::Actions {
-        " Wallet Actions [focused] "
+        " Starknet Tools [focused] "
     } else {
-        " Wallet Actions "
+        " Starknet Tools "
     };
 
     let widget = List::new(items).block(
@@ -464,9 +460,9 @@ fn render_fields(frame: &mut Frame, area: Rect, app: &App) {
         .collect::<Vec<_>>();
 
     let title = if app.focus == Focus::Fields {
-        " Wallet Fields [focused] "
+        " Tool Fields [focused] "
     } else {
-        " Wallet Fields "
+        " Tool Fields "
     };
 
     let widget = Paragraph::new(Text::from(lines))
@@ -566,7 +562,7 @@ fn build_command(form: &ActionForm) -> AppResult<Vec<String>> {
             "Filecoin Tx Claim Lookup is handled through the proof API, not cast.",
         )),
         ActionKind::GenerateZkWitness => Err(AppError::message(
-            "Prove + Claim is handled through the Noir plus protocol flow, not plain cast.",
+            "Prepare Starknet Claim is handled locally inside the TUI plus the proof API, not cast.",
         )),
         ActionKind::RecoverStarknetStealth => Err(AppError::message(
             "Recover Starknet Stealth is handled locally inside the TUI, not cast.",
@@ -670,7 +666,17 @@ fn fallback_command_preview(form: &ActionForm) -> String {
                 form.value("leaf_address")
             )
         }
+        ActionKind::GenerateZkWitness => {
+            let api_base = normalize_api_base_url(form.value("api_base_url"))
+                .unwrap_or_else(|_| "http://127.0.0.1:3000".to_string());
+            format!(
+                "GET {api_base}/campaigns/{}/claim/{} + local Starknet claim bundle",
+                form.value("campaign_selector"),
+                form.value("claimant_address")
+            )
+        }
         ActionKind::RecoverStarknetStealth => "local stealth key recovery".to_string(),
+        ActionKind::CheckAddress => "local starknet address derivation".to_string(),
         _ => form.command_label.to_string(),
     }
 }
@@ -685,8 +691,12 @@ fn focus_fields_for_error(app: &mut App, message: &str) {
     let lowered = message.to_ascii_lowercase();
     let key = if lowered.contains("api base url") {
         Some("api_base_url")
-    } else if lowered.contains("campaign id") {
-        Some("campaign_id")
+    } else if lowered.contains("campaign id")
+        || lowered.contains("campaign name")
+        || lowered.contains("campaign selector")
+        || lowered.contains("campaign")
+    {
+        Some("campaign_selector")
     } else if lowered.contains("tx hash") || lowered.contains("transaction hash") {
         Some("tx_hash")
     } else if lowered.contains("leaf address") {
@@ -695,12 +705,8 @@ fn focus_fields_for_error(app: &mut App, message: &str) {
         Some("claimant_address")
     } else if lowered.contains("wallet address") {
         Some("wallet_address")
-    } else if lowered.contains("wallet account") {
-        Some("wallet_account")
     } else if lowered.contains("wallet secret") {
         Some("wallet_secret")
-    } else if lowered.contains("saved account") || lowered.contains("account name") {
-        Some("account_name")
     } else if lowered.contains("message domain") {
         Some("message_domain")
     } else if lowered.contains("eligible root") {
@@ -709,26 +715,8 @@ fn focus_fields_for_error(app: &mut App, message: &str) {
         Some("ephemeral_pubkey_x")
     } else if lowered.contains("ephemeral pubkey y") {
         Some("ephemeral_pubkey_y")
-    } else if lowered.contains("keystore path") {
-        Some("keystore_path")
-    } else if lowered.contains("circuit dir") {
-        Some("circuit_dir")
-    } else if lowered.contains("verifier vk") {
-        Some("verifier_vk_path")
-    } else if lowered.contains("proof output dir") {
-        Some("proof_output_dir")
-    } else if lowered.contains("bb crs") {
-        Some("bb_crs_path")
-    } else if lowered.contains("witness name") {
-        Some("witness_name")
-    } else if lowered.contains("keystore dir") {
-        Some("keystore_dir")
-    } else if lowered.contains("password") {
-        Some("password")
-    } else if lowered.contains("private key") {
-        Some("private_key")
-    } else if lowered.contains("number") {
-        Some("number")
+    } else if lowered.contains("ephemeral secret") {
+        Some("ephemeral_secret")
     } else {
         app.current_form().fields.first().map(|field| field.key)
     };
@@ -863,171 +851,280 @@ fn run_filecoin_tx_claim_lookup(form: &ActionForm) -> AppResult<CommandResult> {
     })
 }
 
-fn run_generate_zk_witness(form: &ActionForm) -> AppResult<CommandResult> {
-    let api_base = normalize_api_base_url(&default_api_base_url())?;
-    let protocol_address = normalize_protocol_address(&default_protocol_address())?;
-    let rpc_url = normalize_rpc_url(&default_rpc_url())?;
+fn run_prepare_starknet_claim(form: &ActionForm) -> AppResult<CommandResult> {
+    let api_base = normalize_api_base_url(&required_value(
+        form,
+        "api_base_url",
+        "API base URL is required.",
+    )?)?;
     let campaign_selector = required_value(
         form,
         "campaign_selector",
         "Campaign name or UUID is required.",
     )?;
-    let circuit_dir = normalize_circuit_dir(&default_circuit_dir())?;
-    let bb_crs_path = normalize_existing_dir(
-        &default_bb_crs_path(),
-        "BB CRS path",
+    let claimant_address_hex = normalize_starknet_address(&required_value(
+        form,
+        "claimant_address",
+        "Claimant address is required.",
+    )?)?;
+    let claimant_address = parse_stark_felt(&claimant_address_hex, "Claimant address")?;
+    let wallet_secret = parse_stark_felt(
+        &required_value(form, "wallet_secret", "Wallet secret is required.")?,
+        "Wallet secret",
     )?;
-    let verifier_vk_path = normalize_existing_file(
-        &default_verifier_vk_path(),
-        "Verifier VK path",
-    )?;
-    let proof_output_dir = normalize_output_dir(
-        &default_proof_output_dir(),
-        "Proof output dir",
-    )?;
-    let witness_name = "claim_witness".to_string();
+    if wallet_secret == StarkField::zero() {
+        return Err(AppError::message(
+            "Wallet secret must be non-zero for Starknet claim preparation.",
+        ));
+    }
 
-    let wallet = resolve_wallet_for_zk(form)?;
+    let message_domain = parse_message_domain(&required_value(
+        form,
+        "message_domain",
+        "Message domain is required.",
+    )?)?;
+    let ephemeral_secret = if form.value("ephemeral_secret").is_empty() {
+        random_nonzero_stark_scalar()?
+    } else {
+        let provided = parse_stark_felt(
+            &required_value(form, "ephemeral_secret", "Ephemeral secret is required.")?,
+            "Ephemeral secret",
+        )?;
+        if provided == StarkField::zero() {
+            return Err(AppError::message(
+                "Ephemeral secret must be non-zero when provided.",
+            ));
+        }
+        provided
+    };
+
     let resolved_campaign = resolve_campaign_claim_for_wallet(
         &api_base,
         &campaign_selector,
-        &wallet.address,
+        &claimant_address_hex,
     )?;
-    let claim = resolved_campaign.claim;
     let campaign = resolved_campaign.campaign;
+    let claim = resolved_campaign.claim;
+    let normalized_leaf_address = normalize_starknet_address(&claim.leaf_address)?;
+    if normalized_leaf_address != claimant_address_hex {
+        return Err(AppError::message(format!(
+            "The resolved claim is for {}, not {}.",
+            normalized_leaf_address, claimant_address_hex
+        )));
+    }
+
+    let eligible_root = parse_stark_felt(&claim.noir_inputs.eligible_root, "Eligible root")?;
+    let eligible_index: usize = claim
+        .noir_inputs
+        .eligible_index
+        .trim()
+        .parse()
+        .map_err(|_| AppError::message("Eligible index returned by the API is not a valid integer."))?;
+    let eligible_path = claim
+        .noir_inputs
+        .eligible_path
+        .iter()
+        .map(|value| parse_stark_felt(value, "Eligible path node"))
+        .collect::<AppResult<Vec<_>>>()?;
+
+    if eligible_path.len() != 12 {
+        return Err(AppError::message(format!(
+            "Expected a depth-12 Starknet proof path, but received {} nodes.",
+            eligible_path.len()
+        )));
+    }
+
+    if !verify_starknet_merkle_membership(
+        &claimant_address,
+        &eligible_root,
+        &eligible_path,
+        eligible_index,
+    ) {
+        return Err(AppError::message(
+            "The campaign proof returned by the API failed local Starknet Merkle verification.",
+        ));
+    }
+
+    let generator = StarkCurve::generator();
+    let base_pubkey = generator
+        .operate_with_self(wallet_secret.representative())
+        .to_affine();
+    let ephemeral_pubkey = generator
+        .operate_with_self(ephemeral_secret.representative())
+        .to_affine();
+    let ephemeral_pubkey_x = ephemeral_pubkey.x().clone();
+    let ephemeral_pubkey_y = ephemeral_pubkey.y().clone();
+    let stealth_tweak = derive_private_stealth_tweak_field(
+        &wallet_secret,
+        &claimant_address,
+        &message_domain,
+        &eligible_root,
+        &ephemeral_pubkey_x,
+        &ephemeral_pubkey_y,
+    );
+    let tweak_pubkey = generator
+        .operate_with_self(stealth_tweak.representative())
+        .to_affine();
+    let stealth_pubkey = base_pubkey.operate_with(&tweak_pubkey).to_affine();
+    let base_address = point_to_contract_address_hex(base_pubkey.x(), base_pubkey.y());
+    let stealth_address = point_to_contract_address_hex(stealth_pubkey.x(), stealth_pubkey.y());
+    if base_address == stealth_address {
+        return Err(AppError::message(
+            "Stealth derivation collapsed back to the base address.",
+        ));
+    }
+
+    let stealth_private_scalar = &wallet_secret + &stealth_tweak;
+    if stealth_private_scalar == StarkField::zero() {
+        return Err(AppError::message(
+            "Derived stealth private scalar reduced to zero. Regenerate the local bundle.",
+        ));
+    }
+
+    let nullifier_hash = derive_nullifier_field(&wallet_secret, &message_domain);
     let onchain_campaign_id = resolve_onchain_campaign_id(&claim)?;
-    let prover_path = circuit_dir.join("Prover.toml");
-    let secrets = generate_auto_witness_secrets()?;
-    let prover_contents = build_prover_toml_contents(&wallet, &claim, &secrets)?;
-
-    fs::write(&prover_path, prover_contents).map_err(|source| {
-        AppError::io(format!("failed to write {}", prover_path.display()), source)
-    })?;
-
-    let execute_result = run_nargo_execute(&circuit_dir, &witness_name)?;
-    if !execute_result.success {
-        return Ok(CommandResult {
-            command_preview: format!(
-                "write {} + nargo execute {}",
-                prover_path.display(),
-                witness_name
-            ),
-            output: execute_result.output,
-            success: false,
-        });
-    }
-
-    let witness_path = circuit_dir
-        .join("target")
-        .join(format!("{witness_name}.gz"));
-    let bytecode_path = circuit_dir.join("target").join("stealthdrop.json");
-    let prove_result = run_bb_prove(
-        &bytecode_path,
-        &witness_path,
-        &verifier_vk_path,
-        &proof_output_dir,
-        &bb_crs_path,
-    )?;
-    if !prove_result.success {
-        return Ok(CommandResult {
-            command_preview: format!(
-                "write {} + nargo execute {} + bb prove",
-                prover_path.display(),
-                witness_name
-            ),
-            output: prove_result.output,
-            success: false,
-        });
-    }
-
-    let proof_path = proof_output_dir.join("proof");
-    let public_inputs_path = proof_output_dir.join("public_inputs");
-    let proof_hex = encode_file_as_hex(&proof_path)?;
-    let public_inputs = encode_public_inputs_array(&public_inputs_path)?;
-    let preview_result = run_cast_command_with_preview(
-        &build_protocol_preview_args(
-            &protocol_address,
-            &onchain_campaign_id,
-            &public_inputs,
-            &rpc_url,
-        ),
-        format!("cast call {protocol_address} previewClaim(..)"),
-    )?;
-    if !preview_result.success {
-        return Ok(CommandResult {
-            command_preview: "cast call previewClaim(..)".to_string(),
-            output: preview_result.output,
-            success: false,
-        });
-    }
-
-    let private_key_hex = format!("0x{}", bytes_to_hex(&wallet.wallet_secret));
-    let claim_result = run_cast_command_with_preview(
-        &build_protocol_claim_args(
-            &protocol_address,
-            &onchain_campaign_id,
-            &proof_hex,
-            &public_inputs,
-            &rpc_url,
-            &private_key_hex,
-        ),
-        format!("cast send {protocol_address} claim(..)"),
-    )?;
+    let proof_values = std::iter::once(stark_field_to_hex(&wallet_secret))
+        .chain(std::iter::once(format!("0x{:x}", eligible_index)))
+        .chain(eligible_path.iter().map(stark_field_to_hex))
+        .collect::<Vec<_>>();
 
     let mut output = String::new();
-    let _ = writeln!(output, "Resolved wallet: {}", wallet.account_label);
-    let _ = writeln!(output, "Resolved address: {}", wallet.address);
+    let _ = writeln!(output, "Prepared a Starknet relayer bundle locally.");
+    let _ = writeln!(output);
     let _ = writeln!(output, "Campaign selector: {campaign_selector}");
-    let _ = writeln!(output, "Resolved campaign name: {}", campaign.name);
-    let _ = writeln!(output, "Resolved campaign ID: {}", claim.campaign_id);
-    let _ = writeln!(output, "Onchain Campaign ID: {}", onchain_campaign_id);
-    let _ = writeln!(output, "Protocol address: {}", protocol_address);
-    let _ = writeln!(output, "RPC URL: {}", rpc_url);
-    let _ = writeln!(output, "Claim leaf address: {}", claim.leaf_address);
-    let _ = writeln!(output, "Prover file: {}", prover_path.display());
-    let _ = writeln!(output, "Witness path: {}", witness_path.display());
-    let _ = writeln!(output, "Bytecode path: {}", bytecode_path.display());
-    let _ = writeln!(output, "Verifier VK: {}", verifier_vk_path.display());
-    let _ = writeln!(output, "BB CRS path: {}", bb_crs_path.display());
-    let _ = writeln!(output, "Proof output dir: {}", proof_output_dir.display());
-    let _ = writeln!(output, "Message hex: {}", bytes_to_hex(&secrets.message));
+    let _ = writeln!(output, "Resolved campaign: {}", campaign.name);
+    let _ = writeln!(output, "Campaign ID: {}", claim.campaign_id);
+    let _ = writeln!(output, "Onchain campaign ID: {onchain_campaign_id}");
+    let _ = writeln!(output, "Claimant address: {claimant_address_hex}");
+    let _ = writeln!(output, "Base address: {base_address}");
+    let _ = writeln!(output, "Eligible root: {}", stark_field_to_hex(&eligible_root));
+    let _ = writeln!(output, "Eligible index: {eligible_index}");
+    let _ = writeln!(output, "Proof nodes: {}", eligible_path.len());
+    let _ = writeln!(output, "Nullifier hash: {}", stark_field_to_hex(&nullifier_hash));
+    let _ = writeln!(output, "Stealth address: {stealth_address}");
+    let _ = writeln!(output);
+    let _ = writeln!(output, "Relayer body draft (authorization omitted):");
+    let _ = writeln!(output, "{{");
+    let _ = writeln!(output, "  \"campaign_id\": \"{onchain_campaign_id}\",");
+    let _ = writeln!(output, "  \"claim\": {{");
+    let _ = writeln!(output, "    \"claimant_address\": \"{claimant_address_hex}\",");
     let _ = writeln!(
         output,
-        "Stealth tweak: {}",
-        bytes_to_hex(&secrets.stealth_tweak)
+        "    \"message_domain\": \"{}\",",
+        stark_field_to_hex(&message_domain)
     );
     let _ = writeln!(
         output,
-        "MVP mode: using fixed TUI Noir inputs for message and stealth_tweak."
+        "    \"eligible_root\": \"{}\",",
+        stark_field_to_hex(&eligible_root)
     );
+    let _ = writeln!(
+        output,
+        "    \"ephemeral_pubkey_x\": \"{}\",",
+        stark_field_to_hex(&ephemeral_pubkey_x)
+    );
+    let _ = writeln!(
+        output,
+        "    \"ephemeral_pubkey_y\": \"{}\",",
+        stark_field_to_hex(&ephemeral_pubkey_y)
+    );
+    let _ = writeln!(
+        output,
+        "    \"nullifier_hash\": \"{}\",",
+        stark_field_to_hex(&nullifier_hash)
+    );
+    let _ = writeln!(output, "    \"stealth_address\": \"{stealth_address}\"");
+    let _ = writeln!(output, "  }},");
+    let _ = writeln!(output, "  \"proof\": [");
+    for (index, item) in proof_values.iter().enumerate() {
+        let suffix = if index + 1 == proof_values.len() { "" } else { "," };
+        let _ = writeln!(output, "    \"{item}\"{suffix}");
+    }
+    let _ = writeln!(output, "  ]");
+    let _ = writeln!(output, "}}");
+    let _ = writeln!(output);
+    let _ = writeln!(output, "Local recovery note:");
+    let _ = writeln!(output, "  wallet_secret: {}", stark_field_to_hex(&wallet_secret));
+    let _ = writeln!(output, "  claimant_address: {claimant_address_hex}");
+    let _ = writeln!(
+        output,
+        "  message_domain: {}",
+        stark_field_to_hex(&message_domain)
+    );
+    let _ = writeln!(
+        output,
+        "  eligible_root: {}",
+        stark_field_to_hex(&eligible_root)
+    );
+    let _ = writeln!(
+        output,
+        "  ephemeral_secret: {}",
+        stark_field_to_hex(&ephemeral_secret)
+    );
+    let _ = writeln!(
+        output,
+        "  ephemeral_pubkey_x: {}",
+        stark_field_to_hex(&ephemeral_pubkey_x)
+    );
+    let _ = writeln!(
+        output,
+        "  ephemeral_pubkey_y: {}",
+        stark_field_to_hex(&ephemeral_pubkey_y)
+    );
+    let _ = writeln!(
+        output,
+        "  stealth_private_key: {}",
+        stark_field_to_hex(&stealth_private_scalar)
+    );
+    let _ = writeln!(output, "  stealth_address: {stealth_address}");
     let _ = writeln!(output);
     let _ = writeln!(
         output,
-        "nargo execute output:\n{}",
-        execute_result.output.trim()
-    );
-    let _ = writeln!(output);
-    let _ = writeln!(
-        output,
-        "bb prove output:\n{}",
-        prove_result.output.trim()
-    );
-    let _ = writeln!(output);
-    let _ = writeln!(output, "previewClaim output:\n{}", preview_result.output.trim());
-    let _ = writeln!(output);
-    let _ = writeln!(output, "claim tx output:\n{}", claim_result.output.trim());
-    let _ = writeln!(
-        output,
-        "Circuit public outputs now include nullifier_x, nullifier_y, and stealth_address, and this action used them to send the onchain claim transaction."
+        "Next step: sign the claim authorization in the frontend or wallet flow, then add authorization.signature before sending this body to the relayer."
     );
 
     Ok(CommandResult {
         command_preview: format!(
-            "GET claim payload + nargo execute {} + bb prove + cast send claim(..)",
-            witness_name
+            "GET {api_base}/campaigns/{}/claim/{} + local Starknet claim bundle",
+            claim.campaign_id, claimant_address_hex
         ),
         output,
-        success: claim_result.success,
+        success: true,
+    })
+}
+
+fn run_derive_starknet_address(form: &ActionForm) -> AppResult<CommandResult> {
+    let wallet_secret = parse_stark_felt(
+        &required_value(form, "wallet_secret", "Wallet secret is required.")?,
+        "Wallet secret",
+    )?;
+    if wallet_secret == StarkField::zero() {
+        return Err(AppError::message(
+            "Wallet secret must be non-zero for Starknet address derivation.",
+        ));
+    }
+
+    let base_pubkey = StarkCurve::generator()
+        .operate_with_self(wallet_secret.representative())
+        .to_affine();
+    let starknet_address = point_to_contract_address_hex(base_pubkey.x(), base_pubkey.y());
+
+    let mut output = String::new();
+    let _ = writeln!(output, "Derived Starknet base address locally.");
+    let _ = writeln!(output);
+    let _ = writeln!(output, "Base pubkey X: {}", stark_field_to_hex(base_pubkey.x()));
+    let _ = writeln!(output, "Base pubkey Y: {}", stark_field_to_hex(base_pubkey.y()));
+    let _ = writeln!(output, "Starknet address: {starknet_address}");
+    let _ = writeln!(output);
+    let _ = writeln!(
+        output,
+        "This is the base address before any stealth tweak is applied."
+    );
+
+    Ok(CommandResult {
+        command_preview: "local starknet address derivation".to_string(),
+        output,
+        success: true,
     })
 }
 
@@ -1042,14 +1139,17 @@ fn run_recover_starknet_stealth(form: &ActionForm) -> AppResult<CommandResult> {
         ));
     }
 
-    let claimant_address = parse_stark_felt(
-        &required_value(form, "claimant_address", "Claimant address is required.")?,
-        "Claimant address",
-    )?;
-    let message_domain = parse_stark_felt(
-        &required_value(form, "message_domain", "Message domain is required.")?,
-        "Message domain",
-    )?;
+    let claimant_address_hex = normalize_starknet_address(&required_value(
+        form,
+        "claimant_address",
+        "Claimant address is required.",
+    )?)?;
+    let claimant_address = parse_stark_felt(&claimant_address_hex, "Claimant address")?;
+    let message_domain = parse_message_domain(&required_value(
+        form,
+        "message_domain",
+        "Message domain is required.",
+    )?)?;
     let eligible_root = parse_stark_felt(
         &required_value(form, "eligible_root", "Eligible root is required.")?,
         "Eligible root",
@@ -1106,6 +1206,7 @@ fn run_recover_starknet_stealth(form: &ActionForm) -> AppResult<CommandResult> {
     let mut output = String::new();
     let _ = writeln!(output, "Recovered Starknet stealth material locally.");
     let _ = writeln!(output);
+    let _ = writeln!(output, "Claimant address: {claimant_address_hex}");
     let _ = writeln!(output, "Base pubkey X: {}", stark_field_to_hex(base_pubkey.x()));
     let _ = writeln!(output, "Base pubkey Y: {}", stark_field_to_hex(base_pubkey.y()));
     let _ = writeln!(output, "Base address: {base_address}");
@@ -1544,36 +1645,10 @@ fn build_protocol_claim_args(
 
 fn resolve_campaign_wallet_address(form: &ActionForm) -> AppResult<Option<String>> {
     let wallet_identifier = form.value("wallet_address");
-    let password = form.value("password");
-    let keystore_path = normalize_path(form.value("keystore_path"));
-
-    if wallet_identifier.is_empty() && keystore_path.is_empty() {
+    if wallet_identifier.is_empty() {
         return Ok(None);
     }
-
-    if !wallet_identifier.is_empty() {
-        if let Ok(address) = normalize_wallet_address(wallet_identifier) {
-            return Ok(Some(address));
-        }
-    }
-
-    let args = build_saved_wallet_address_command(wallet_identifier, &keystore_path, password)?;
-    let result = run_cast_command(&args)?;
-    if !result.success {
-        return Err(AppError::message(format!(
-            "failed to resolve wallet address from Foundry account or keystore: {}",
-            result.output.trim()
-        )));
-    }
-
-    extract_wallet_address(&result.output)
-        .ok_or_else(|| {
-            AppError::message(
-                "cast returned output, but I could not extract a wallet address from it."
-                    .to_string(),
-            )
-        })
-        .map(Some)
+    normalize_starknet_address(wallet_identifier).map(Some)
 }
 
 fn build_saved_wallet_address_command(
@@ -1686,6 +1761,28 @@ fn normalize_api_base_url(raw: &str) -> AppResult<String> {
     Ok(trimmed.to_string())
 }
 
+fn normalize_starknet_address(raw: &str) -> AppResult<String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::message("Starknet address is required."));
+    }
+    if !trimmed.starts_with("0x") {
+        return Err(AppError::message(format!(
+            "Starknet address must be hex-prefixed: {trimmed}"
+        )));
+    }
+
+    let integer = parse_biguint_auto(trimmed, "Starknet address")?;
+    let upper_bound = BigUint::from(1_u8) << STARKNET_ADDRESS_BITS;
+    if integer >= upper_bound {
+        return Err(AppError::message(format!(
+            "Starknet address must fit within 251 bits: {trimmed}"
+        )));
+    }
+
+    Ok(format!("0x{:0>64}", integer.to_str_radix(16)))
+}
+
 fn normalize_wallet_address(raw: &str) -> AppResult<String> {
     let trimmed = raw.trim();
     if trimmed.len() != 42 || !trimmed.starts_with("0x") {
@@ -1796,6 +1893,31 @@ fn parse_stark_felt(raw: &str, label: &str) -> AppResult<StarkField> {
     })
 }
 
+fn parse_message_domain(raw: &str) -> AppResult<StarkField> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::message("Message domain is required."));
+    }
+
+    if trimmed.starts_with("0x") || trimmed.chars().all(|character| character.is_ascii_digit()) {
+        return parse_stark_felt(trimmed, "Message domain");
+    }
+
+    if !trimmed.is_ascii() {
+        return Err(AppError::message(
+            "Message domain must be ASCII when passed as a short string.",
+        ));
+    }
+
+    if trimmed.len() > 31 {
+        return Err(AppError::message(
+            "Message domain short strings must be 31 ASCII characters or fewer.",
+        ));
+    }
+
+    Ok(stark_short_string_field(trimmed))
+}
+
 fn parse_biguint_auto(raw: &str, label: &str) -> AppResult<BigUint> {
     let trimmed = raw.trim();
     let (radix, digits) = if let Some(hex) = trimmed.strip_prefix("0x").or_else(|| trimmed.strip_prefix("0X")) {
@@ -1811,6 +1933,12 @@ fn parse_biguint_auto(raw: &str, label: &str) -> AppResult<BigUint> {
 
 fn stark_field_to_hex(value: &StarkField) -> String {
     format!("0x{}", value.to_hex().to_ascii_lowercase())
+}
+
+fn stark_address_to_hex(value: &StarkField) -> String {
+    let integer = parse_biguint_auto(&stark_field_to_hex(value), "Starknet address")
+        .expect("generated Starknet felt should parse");
+    format!("0x{:0>64}", integer.to_str_radix(16))
 }
 
 fn stark_short_string_field(value: &str) -> StarkField {
@@ -1862,13 +1990,55 @@ fn point_to_contract_address_hex(x: &StarkField, y: &StarkField) -> String {
         let candidate_value = parse_biguint_auto(&stark_field_to_hex(&candidate), "Stealth address")
             .expect("generated stark felt should parse");
         if candidate_value < address_upper_bound {
-            return stark_field_to_hex(&candidate);
+            return stark_address_to_hex(&candidate);
         }
 
         candidate = PoseidonCairoStark252::hash_many(&[
             retry_domain.clone(),
             candidate.clone(),
         ]);
+    }
+}
+
+fn derive_nullifier_field(wallet_secret: &StarkField, message_domain: &StarkField) -> StarkField {
+    let nullifier_domain = stark_short_string_field("NULLIFIER_V1");
+    let digest = PedersenStarkCurve::hash(&nullifier_domain, wallet_secret);
+    PedersenStarkCurve::hash(&digest, message_domain)
+}
+
+fn verify_starknet_merkle_membership(
+    leaf_address: &StarkField,
+    root: &StarkField,
+    proof_path: &[StarkField],
+    leaf_index: usize,
+) -> bool {
+    let mut current = leaf_address.clone();
+    let mut index = leaf_index;
+
+    for sibling in proof_path {
+        current = if index % 2 == 0 {
+            PedersenStarkCurve::hash(&current, sibling)
+        } else {
+            PedersenStarkCurve::hash(sibling, &current)
+        };
+        index /= 2;
+    }
+
+    current == *root
+}
+
+fn random_nonzero_stark_scalar() -> AppResult<StarkField> {
+    let mut bytes = [0_u8; 32];
+    let field_upper_bound = BigUint::from(1_u8) << STARKNET_ADDRESS_BITS;
+
+    loop {
+        OsRng.fill_bytes(&mut bytes);
+        let integer = BigUint::from_bytes_be(&bytes) % &field_upper_bound;
+        if integer == BigUint::from(0_u8) {
+            continue;
+        }
+
+        return parse_stark_felt(&format!("0x{}", integer.to_str_radix(16)), "Ephemeral secret");
     }
 }
 
@@ -1941,6 +2111,31 @@ fn extract_wallet_address(output: &str) -> Option<String> {
                 matches!(character, '"' | '\'' | ',' | ';' | '(' | ')')
             });
             normalize_wallet_address(candidate).ok()
+        })
+    })
+}
+
+fn extract_starknet_address(output: &str) -> Option<String> {
+    for line in output.lines() {
+        if !line.to_ascii_lowercase().contains("address") {
+            continue;
+        }
+        if let Some(found) = line.split_whitespace().find_map(|token| {
+            let candidate = token.trim_matches(|character: char| {
+                matches!(character, '"' | '\'' | ',' | ';' | '(' | ')')
+            });
+            normalize_starknet_address(candidate).ok()
+        }) {
+            return Some(found);
+        }
+    }
+
+    output.lines().find_map(|line| {
+        line.split_whitespace().find_map(|token| {
+            let candidate = token.trim_matches(|character: char| {
+                matches!(character, '"' | '\'' | ',' | ';' | '(' | ')')
+            });
+            normalize_starknet_address(candidate).ok()
         })
     })
 }
@@ -2147,7 +2342,10 @@ fn format_campaign_lookup_output(
     let _ = writeln!(output, "No claim      {missing_count}");
     let _ = writeln!(output, "Errors        {error_count}");
     let _ = writeln!(output);
-    let _ = writeln!(output, "Claim details come from the Rust API. Proof generation happens in Prove + Claim.");
+    let _ = writeln!(
+        output,
+        "Claim details come from the Rust API. Use Prepare Starknet Claim to build the relayer bundle and recovery note."
+    );
     let _ = writeln!(output);
 
     for (index, lookup) in lookups.iter().enumerate() {

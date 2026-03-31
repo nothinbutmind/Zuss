@@ -123,7 +123,7 @@ function parseRecipients(text, chain) {
   });
 }
 
-function parseAvaxAmount(value, label) {
+function parseTokenInput(value, label, chain) {
   const trimmed = value.trim();
 
   if (!trimmed) {
@@ -131,12 +131,12 @@ function parseAvaxAmount(value, label) {
   }
 
   if (!/^\d+(\.\d+)?$/.test(trimmed)) {
-    throw new Error(`${label} must be a FLOW amount like 0.1 or 1.`);
+    throw new Error(`${label} must be a token amount like 0.1 or 1.`);
   }
 
-  const wei = parseAmountForChain("flow_evm", trimmed);
+  const wei = parseAmountForChain(chain, trimmed);
   if (wei <= 0n) {
-    throw new Error(`${label} must be greater than 0 FLOW.`);
+    throw new Error(`${label} must be greater than 0.`);
   }
 
   return {
@@ -641,7 +641,7 @@ function EmptyCampaignState({ loading, error }) {
   );
 }
 
-function StatusMessage({ createState, pendingDeployment }) {
+function StatusMessage({ createState, pendingDeployment, selectedChain }) {
   const explorerUrl = makeExplorerUrl(createState.txHash, selectedChain);
   const filecoinUrl = createState.apiCampaign?.filecoin_url || "";
 
@@ -656,7 +656,7 @@ function StatusMessage({ createState, pendingDeployment }) {
         }}
       >
         <div style={{ fontFamily: MONO, fontSize: 10, color: "#ff9f9f", letterSpacing: 2, marginBottom: 4 }}>
-          [CREATE_FLOW_ERROR]
+          [CREATE_STARKNET_ERROR]
         </div>
         <div style={{ fontFamily: MONO, fontSize: 9, color: "#c79696", letterSpacing: 1, lineHeight: 1.8 }}>
           {createState.error}
@@ -694,10 +694,10 @@ function StatusMessage({ createState, pendingDeployment }) {
             <br />
             {explorerUrl ? (
               <a href={explorerUrl} target="_blank" rel="noreferrer" style={{ color: CYAN }}>
-                FLOW: {shortHash(createState.txHash)}
+                STARKNET: {shortHash(createState.txHash)}
               </a>
             ) : (
-              <>FLOW: {shortHash(createState.txHash)}</>
+              <>STARKNET: {shortHash(createState.txHash)}</>
             )}
           </>
         ) : null}
@@ -814,8 +814,8 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
       throw new Error("Campaign name is required.");
     }
 
-    const payout = parseAvaxAmount(payoutAvax, "Payout FLOW");
-    const funding = parseAvaxAmount(fundingAvax, "Funding FLOW");
+    const payout = parseTokenInput(payoutAvax, "Payout amount", selectedChain);
+    const funding = parseTokenInput(fundingAvax, "Funding amount", selectedChain);
 
     const recipients = parseRecipients(recipientText, selectedChain);
     const creatorAddress = wallet.account;
@@ -825,7 +825,7 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
     }
 
     if (BigInt(funding.wei) < BigInt(payout.wei)) {
-      throw new Error("Funding FLOW must cover at least one payout.");
+      throw new Error("Funding amount must cover at least one payout.");
     }
 
     return {
@@ -1344,7 +1344,7 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
                     <div className="campaign-card-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 24 }}>
                       <div>
                         <label style={{ fontFamily: MONO, fontSize: 10, color: MUTED2, letterSpacing: 2, display: "block", marginBottom: 10 }}>
-                          PAYOUT_FLOW
+                          PAYOUT_AMOUNT
                         </label>
                         <input
                           value={payoutAvax}
@@ -1362,12 +1362,12 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
                           }}
                         />
                         <div style={{ fontFamily: MONO, fontSize: 10, color: MUTED2, letterSpacing: 1, marginTop: 8, lineHeight: 1.6 }}>
-                          FLOW PER ELIGIBLE CLAIM. THE CONTRACT STILL RECEIVES WEI UNDER THE HOOD.
+                          TOKENS PER ELIGIBLE CLAIM. THE STARKNET CONTRACT STILL RECEIVES BASE UNITS UNDER THE HOOD.
                         </div>
                       </div>
                       <div>
                         <label style={{ fontFamily: MONO, fontSize: 10, color: MUTED2, letterSpacing: 2, display: "block", marginBottom: 10 }}>
-                          FUNDING_FLOW
+                          FUNDING_AMOUNT
                         </label>
                         <input
                           value={fundingAvax}
@@ -1385,7 +1385,7 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
                           }}
                         />
                         <div style={{ fontFamily: MONO, fontSize: 10, color: MUTED2, letterSpacing: 1, marginTop: 8, lineHeight: 1.6 }}>
-                          TOTAL FLOW ATTACHED TO THE CREATE TX ON {getNetworkName(selectedChain).toUpperCase()}.
+                          TOTAL TOKEN FUNDING ATTACHED TO THE CREATE TRANSACTION ON {getNetworkName(selectedChain).toUpperCase()}.
                         </div>
                       </div>
                     </div>
@@ -1463,7 +1463,7 @@ export default function ZusCampaigns({ wallet, onConnect, onNavigateHome, onNavi
                       </Btn>
                     </div>
 
-                    <StatusMessage createState={createState} pendingDeployment={pendingDeployment} />
+                    <StatusMessage createState={createState} pendingDeployment={pendingDeployment} selectedChain={selectedChain} />
                   </div>
 
                   <JsonPanel

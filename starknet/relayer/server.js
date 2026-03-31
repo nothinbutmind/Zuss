@@ -2,7 +2,6 @@ import { createServer } from "node:http";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Contract as EvmContract, JsonRpcProvider, Wallet, TypedDataEncoder, getAddress, isAddress, verifyTypedData } from "ethers";
 import {
   Account,
   Contract as StarknetContract,
@@ -14,16 +13,11 @@ import {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const REPO_ROOT = resolve(__dirname, "..", "..");
 const STARKNET_DIR = resolve(__dirname, "..");
 const TARGET_DIR = join(STARKNET_DIR, "target", "dev");
 const PROTOCOL_ARTIFACT = join(TARGET_DIR, "zus_protocol_starknet_ZusProtocol.contract_class.json");
 const DEFAULT_PORT = 4000;
 const DEFAULT_STARKNET_RPC_URL = "https://starknet-sepolia.public.blastapi.io/rpc/v0_8";
-const DEFAULT_FLOW_RPC_URL = "https://testnet.evm.nodes.onflow.org";
-const FLOW_PROTOCOL_ABI = [
-  "function claim(bytes32 campaignId, bytes proof, bytes32[] publicInputs) returns (address stealthRecipient)",
-];
 
 function requireEnv(name) {
   const value = process.env[name]?.trim();
@@ -46,36 +40,6 @@ function jsonResponse(statusCode, payload) {
 
 function normalizeStarknetAddress(value) {
   return addAddressPadding(validateAndParseAddress(`${value}`.trim()));
-}
-
-function normalizeFlowAddress(value) {
-  if (!isAddress(`${value}`.trim())) {
-    throw new Error(`Invalid Flow EVM address: ${value}`);
-  }
-
-  return getAddress(`${value}`.trim());
-}
-
-function normalizeChain(value) {
-  if (value === "flow" || value === "flow-evm") {
-    return "flow_evm";
-  }
-
-  return value === "starknet" ? "starknet" : "starknet";
-}
-
-function normalizeBytes32(value) {
-  const trimmed = `${value ?? ""}`.trim();
-  if (/^0x[0-9a-fA-F]{64}$/.test(trimmed)) {
-    return trimmed.toLowerCase();
-  }
-
-  const hex = trimmed.replace(/^0x/i, "");
-  if (/^[0-9a-fA-F]{1,64}$/.test(hex)) {
-    return `0x${hex.padStart(64, "0").toLowerCase()}`;
-  }
-
-  throw new Error(`Invalid bytes32 value: ${value}`);
 }
 
 function validateStarknetProof(proof) {
@@ -138,30 +102,6 @@ function buildStarknetAuthorizationTypedData(chainId, campaignId, claim) {
   };
 }
 
-function buildFlowAuthorizationTypedData(body) {
-  return {
-    domain: {
-      name: "ZUS_RELAYER",
-      version: "1",
-      chainId: Number(body.authorization?.typed_data?.domain?.chainId || 0),
-    },
-    types: {
-      ClaimAuthorization: [
-        { name: "campaign_id", type: "bytes32" },
-        { name: "claimant_address", type: "address" },
-        { name: "merkle_root", type: "bytes32" },
-        { name: "message", type: "string" },
-      ],
-    },
-    value: {
-      campaign_id: normalizeBytes32(body.campaign_id),
-      claimant_address: normalizeFlowAddress(body.claimant_address),
-      merkle_root: normalizeBytes32(body.merkle_root),
-      message: `${body.authorization?.typed_data?.message?.message || ""}`,
-    },
-  };
-}
-
 function loadStarknetProtocolAbi() {
   if (!existsSync(PROTOCOL_ARTIFACT)) {
     throw new Error(
@@ -209,45 +149,6 @@ async function relayStarknetClaim(body, context) {
   });
 }
 
-async function relayFlowClaim(body, context) {
-  if (typeof body.proof !== "string" || !body.proof.startsWith("0x")) {
-    throw new Error("Flow EVM proof must be a hex string.");
-  }
-  if (!Array.isArray(body.public_inputs)) {
-    throw new Error("Flow EVM public_inputs must be an array.");
-  }
-  if (typeof body.authorization?.signature !== "string") {
-    throw new Error("authorization.signature is required for Flow EVM claims.");
-  }
-
-  const typedData = buildFlowAuthorizationTypedData(body);
-  const recovered = verifyTypedData(
-    typedData.domain,
-    typedData.types,
-    typedData.value,
-    body.authorization.signature,
-  );
-  const claimantAddress = normalizeFlowAddress(body.claimant_address);
-  if (getAddress(recovered) !== claimantAddress) {
-    return jsonResponse(403, { error: "Claim authorization signature is invalid." });
-  }
-
-  const protocol = new EvmContract(context.protocolAddress, FLOW_PROTOCOL_ABI, context.relayerWallet);
-  const tx = await protocol.claim(
-    normalizeBytes32(body.campaign_id),
-    body.proof,
-    body.public_inputs.map((value) => normalizeBytes32(value)),
-  );
-  await tx.wait();
-
-  return jsonResponse(200, {
-    chain: "flow_evm",
-    transaction_hash: tx.hash,
-    relayed_by: await context.relayerWallet.getAddress(),
-    claimant_address: claimantAddress,
-  });
-}
-
 async function readBody(request) {
   const chunks = [];
   for await (const chunk of request) {
@@ -275,12 +176,6 @@ async function main() {
     address: starknetRelayerAddress,
     signer: starknetRelayerPrivateKey,
   });
-
-  const flowProvider = new JsonRpcProvider(
-    process.env.FLOW_EVM_RPC_URL?.trim() || DEFAULT_FLOW_RPC_URL,
-  );
-  const flowProtocolAddress = normalizeFlowAddress(requireEnv("FLOW_ZUS_PROTOCOL_ADDRESS"));
-  const flowRelayerWallet = new Wallet(requireEnv("FLOW_RELAYER_PRIVATE_KEY"), flowProvider);
   const port = Number.parseInt(process.env.PORT || `${DEFAULT_PORT}`, 10);
 
   const server = createServer(async (request, response) => {
@@ -301,20 +196,13 @@ async function main() {
 
       if (request.url === "/relay-claim" && request.method === "POST") {
         const body = await readBody(request);
-        const chain = normalizeChain(body.chain);
-        const relayResponse =
-          chain === "flow_evm"
-            ? await relayFlowClaim(body, {
-                protocolAddress: flowProtocolAddress,
-                relayerWallet: flowRelayerWallet,
-              })
-            : await relayStarknetClaim(body, {
-                provider: starknetProvider,
-                protocolAbi: starknetProtocolAbi,
-                protocolAddress: starknetProtocolAddress,
-                relayerAccount: starknetRelayerAccount,
-                chainId: starknetChainId,
-              });
+        const relayResponse = await relayStarknetClaim(body, {
+          provider: starknetProvider,
+          protocolAbi: starknetProtocolAbi,
+          protocolAddress: starknetProtocolAddress,
+          relayerAccount: starknetRelayerAccount,
+          chainId: starknetChainId,
+        });
 
         response.writeHead(relayResponse.status, Object.fromEntries(relayResponse.headers));
         response.end(await relayResponse.text());
@@ -336,8 +224,7 @@ async function main() {
   server.listen(port, () => {
     console.log(`ZUS relayer listening on http://127.0.0.1:${port}`);
     console.log(`Starknet protocol: ${starknetProtocolAddress}`);
-    console.log(`Flow EVM protocol: ${flowProtocolAddress}`);
-    console.log(`Relayer wallet: ${getAddress(flowRelayerWallet.address)}`);
+    console.log(`Relayer account: ${starknetRelayerAddress}`);
   });
 }
 

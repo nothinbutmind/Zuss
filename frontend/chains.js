@@ -9,76 +9,38 @@ import {
   parseTokenAmount,
   prepareRelayedClaim as prepareStarknetRelayedClaim,
 } from "./starknet.js";
-import {
-  connectFlowWallet,
-  encodeFlowMessageDomain,
-  executeFlowCampaignDeployment,
-  formatFlowAmount,
-  isValidFlowAddress,
-  normalizeFlowAddress,
-  parseFlowAmount,
-  prepareFlowRelayedClaim,
-} from "./flow.js";
 
-export const CHAIN_OPTIONS = [
-  { key: "flow_evm", label: "Flow EVM" },
-  { key: "starknet", label: "Starknet" },
-];
+export const CHAIN_OPTIONS = [{ key: "starknet", label: "Starknet" }];
 
-export function normalizeChainKey(value) {
-  return value === "flow" || value === "flow-evm" ? "flow_evm" : value === "starknet" ? "starknet" : "starknet";
+export function normalizeChainKey() {
+  return "starknet";
 }
 
-export function isValidAddressForChain(chain, value) {
-  return normalizeChainKey(chain) === "flow_evm"
-    ? isValidFlowAddress(value)
-    : isValidStarknetAddress(value);
+export function isValidAddressForChain(_chain, value) {
+  return isValidStarknetAddress(value);
 }
 
-export function normalizeAddressForChain(chain, value) {
-  return normalizeChainKey(chain) === "flow_evm"
-    ? normalizeFlowAddress(value)
-    : normalizeStarknetAddress(value);
+export function normalizeAddressForChain(_chain, value) {
+  return normalizeStarknetAddress(value);
 }
 
-export function parseAmountForChain(chain, value) {
-  return normalizeChainKey(chain) === "flow_evm" ? parseFlowAmount(value) : parseTokenAmount(value);
+export function parseAmountForChain(_chain, value) {
+  return parseTokenAmount(value);
 }
 
-export function formatAmountForChain(chain, value) {
-  return normalizeChainKey(chain) === "flow_evm" ? formatFlowAmount(value) : formatFlowAmount(value);
+export function formatAmountForChain(_chain, value) {
+  return typeof value === "bigint" ? value.toString() : `${value}`;
 }
 
-export async function connectWalletForChain(chain, appConfig, options = {}) {
-  if (normalizeChainKey(chain) === "flow_evm") {
-    return connectFlowWallet(options);
-  }
-
+export async function connectWalletForChain(_chain, appConfig, options = {}) {
   return connectStarknetWallet({ rpcUrl: appConfig.starknet.rpcUrl, ...options });
 }
 
-export function buildWalletAccountForChain(chain, appConfig, walletProvider, address) {
-  if (normalizeChainKey(chain) === "flow_evm") {
-    return null;
-  }
-
+export function buildWalletAccountForChain(_chain, appConfig, walletProvider, address) {
   return createWalletAccount(appConfig.starknet.rpcUrl, walletProvider, address);
 }
 
-export async function executeCampaignDeploymentForChain(chain, appConfig, walletAccount, deployment) {
-  if (normalizeChainKey(chain) === "flow_evm") {
-    return executeFlowCampaignDeployment({
-      walletAccount,
-      protocolAddress: appConfig.flow.protocolAddress,
-      verifierAddress: appConfig.flow.verifierAddress,
-      campaignId: deployment.apiCampaign.onchain_campaign_id || deployment.apiCampaign.campaign_id,
-      eligibleRoot: deployment.apiCampaign.merkle_root,
-      messageDomain: encodeFlowMessageDomain(appConfig.campaignMessage),
-      payoutAmount: BigInt(deployment.payoutWei),
-      fundingAmount: BigInt(deployment.fundingWei),
-    });
-  }
-
+export async function executeCampaignDeploymentForChain(_chain, appConfig, walletAccount, deployment) {
   return executeStarknetCampaignDeployment({
     rpcUrl: appConfig.starknet.rpcUrl,
     walletAccount,
@@ -98,15 +60,7 @@ export async function executeCampaignDeploymentForChain(chain, appConfig, wallet
   });
 }
 
-export async function prepareRelayedClaimForChain(chain, appConfig, walletAccount, walletState, claimPayload) {
-  if (normalizeChainKey(chain) === "flow_evm") {
-    return prepareFlowRelayedClaim({
-      walletAccount,
-      claimPayload,
-      campaignMessage: appConfig.campaignMessage,
-    });
-  }
-
+export async function prepareRelayedClaimForChain(_chain, appConfig, walletAccount, walletState, claimPayload) {
   return prepareStarknetRelayedClaim({
     walletAccount,
     chainId: walletState.chainId || appConfig.starknet.chainId,
