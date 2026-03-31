@@ -46,6 +46,10 @@ contract CampaignRegistryTest {
         require(campaign.creator == CREATOR, "wrong creator");
         require(campaign.leafCount == 2, "wrong leaf count");
         require(campaign.depth == 12, "wrong depth");
+        require(
+            campaign.payloadHash == sha256(bytes("{\"campaign\":\"payload\"}")),
+            "wrong payload hash"
+        );
 
         CampaignRegistry.Claim memory claimOne = registry.getClaim(expectedKey, RECIPIENT_ONE);
         require(claimOne.amount == 100, "wrong amount one");

@@ -12,7 +12,11 @@ contract CampaignRegistry {
     error RecipientNotFound(bytes32 campaignKey, address recipient);
 
     event CampaignCreated(
-        bytes32 indexed campaignKey, string campaignId, address indexed creator, uint256 recipientCount
+        bytes32 indexed campaignKey,
+        string campaignId,
+        address indexed creator,
+        uint256 recipientCount,
+        bytes32 payloadHash
     );
     event CampaignPayloadPosted(bytes32 indexed campaignKey, string payload);
 
@@ -24,6 +28,7 @@ contract CampaignRegistry {
         uint256 depth;
         string hashAlgorithm;
         string leafEncoding;
+        bytes32 payloadHash;
         bool exists;
     }
 
@@ -69,6 +74,7 @@ contract CampaignRegistry {
         campaign.depth = depth;
         campaign.hashAlgorithm = hashAlgorithm;
         campaign.leafEncoding = leafEncoding;
+        campaign.payloadHash = sha256(bytes(payload));
         campaign.exists = true;
 
         for (uint256 i = 0; i < recipients.length; ++i) {
@@ -87,7 +93,7 @@ contract CampaignRegistry {
         creatorCampaignKeys[campaignCreatorAddress].push(campaignKey);
         allCampaignKeys.push(campaignKey);
 
-        emit CampaignCreated(campaignKey, campaignId, campaignCreatorAddress, recipients.length);
+        emit CampaignCreated(campaignKey, campaignId, campaignCreatorAddress, recipients.length, campaign.payloadHash);
         emit CampaignPayloadPosted(campaignKey, payload);
     }
 

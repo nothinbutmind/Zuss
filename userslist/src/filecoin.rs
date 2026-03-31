@@ -60,6 +60,7 @@ struct RegistryCampaignMeta {
     depth: usize,
     hash_algorithm: String,
     leaf_encoding: String,
+    payload_hash: Option<String>,
 }
 
 #[derive(Debug)]
@@ -452,6 +453,7 @@ impl FilecoinClient {
                 ParamType::Uint(256),
                 ParamType::String,
                 ParamType::String,
+                ParamType::FixedBytes(32),
                 ParamType::Bool,
             ])],
             bytes.as_ref(),
@@ -479,6 +481,10 @@ impl FilecoinClient {
                 .map_err(|_| AppError::internal("tree depth does not fit into usize"))?,
             hash_algorithm: expect_string(&values[5], "hash algorithm")?,
             leaf_encoding: expect_string(&values[6], "leaf encoding")?,
+            payload_hash: Some(format!(
+                "0x{}",
+                hex::encode(expect_fixed_bytes(&values[7], 32, "payload hash")?)
+            )),
         })
     }
 
@@ -811,6 +817,24 @@ fn validate_registry_payload(
             meta.leaf_count
         )));
     }
+    if let Some(expected_payload_hash) = &meta.payload_hash {
+        let actual_payload_hash = format!(
+            "0x{}",
+            hex::encode(Sha256::digest(
+                serde_json::to_vec(payload).map_err(|error| {
+                    AppError::internal(format!(
+                        "failed to serialize Filecoin payload for registry hash validation: {error}"
+                    ))
+                })?
+            ))
+        );
+        if &actual_payload_hash != expected_payload_hash {
+            return Err(AppError::internal(format!(
+                "Filecoin payload hash {} does not match the Zus protocol record {}",
+                actual_payload_hash, expected_payload_hash
+            )));
+        }
+    }
     Ok(())
 }
 
@@ -921,14 +945,21 @@ fn expect_uint(token: &Token, label: &str) -> Result<U256, AppError> {
 }
 
 fn expect_fixed_bytes_32(token: &Token, label: &str) -> Result<[u8; 32], AppError> {
+    let value = expect_fixed_bytes(token, 32, label)?;
+    let mut bytes = [0u8; 32];
+    bytes.copy_from_slice(value);
+    Ok(bytes)
+}
+
+fn expect_fixed_bytes<'a>(
+    token: &'a Token,
+    expected_len: usize,
+    label: &str,
+) -> Result<&'a [u8], AppError> {
     match token {
-        Token::FixedBytes(value) if value.len() == 32 => {
-            let mut bytes = [0u8; 32];
-            bytes.copy_from_slice(value);
-            Ok(bytes)
-        }
+        Token::FixedBytes(value) if value.len() == expected_len => Ok(value),
         _ => Err(AppError::internal(format!(
-            "expected {label} to decode as bytes32"
+            "expected {label} to decode as bytes{expected_len}"
         ))),
     }
 }
