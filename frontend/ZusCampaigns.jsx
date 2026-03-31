@@ -315,6 +315,14 @@ function useTypewriter(text, speed = 22, delay = 0) {
   return { out, done };
 }
 
+function formatPreviewAmountWei(chain, value, fallback) {
+  try {
+    return parseAmountForChain(chain, value || fallback).toString();
+  } catch {
+    return "PENDING_INPUT";
+  }
+}
+
 function JsonPanel({ campaignName, instant, merkle, payoutAvax, fundingAvax, recipients, selectedChain }) {
   const sampleRecipients = recipients.slice(0, 2);
   const previewRecipients =
@@ -328,8 +336,16 @@ function JsonPanel({ campaignName, instant, merkle, payoutAvax, fundingAvax, rec
           { address: "0x709979...79c8", amount: "1" },
         ];
 
-  const payoutWei = parseAmountForChain(selectedChain, payoutAvax || appConfig.defaultPayoutAvax).toString();
-  const fundingWei = parseAmountForChain(selectedChain, fundingAvax || appConfig.defaultFundingAvax).toString();
+  const payoutWei = formatPreviewAmountWei(
+    selectedChain,
+    payoutAvax,
+    appConfig.defaultPayoutAvax,
+  );
+  const fundingWei = formatPreviewAmountWei(
+    selectedChain,
+    fundingAvax,
+    appConfig.defaultFundingAvax,
+  );
   const dynamic = `{
   "name": "${campaignName || "ZUS_AIRDROP_PROXIMA"}",
   "network": "${getNetworkName(selectedChain)}",
