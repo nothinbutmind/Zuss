@@ -507,6 +507,11 @@ export default function App({
     error: "",
     payload: null,
   });
+  const [filecoinState, setFilecoinState] = useState({
+    loading: false,
+    error: "",
+    dataset: null,
+  });
   const activeChain = campaignData?.execution_chain || selectedChain;
 
   useEffect(() => {
@@ -622,6 +627,36 @@ export default function App({
       .slice(0, 80);
 
     downloadJsonFile(`zus-starknet-claim-payload-${safeCampaignId}.json`, claimState.payload);
+  };
+
+  const handleLoadFilecoinDataset = async () => {
+    if (!campaignData) {
+      return;
+    }
+
+    setFilecoinState({
+      loading: true,
+      error: "",
+      dataset: null,
+    });
+
+    try {
+      const dataset = await readJson(
+        await fetch(resolveApiUrl(`/campaigns/${campaignData.campaign_id}/dataset`)),
+      );
+
+      setFilecoinState({
+        loading: false,
+        error: "",
+        dataset,
+      });
+    } catch (error) {
+      setFilecoinState({
+        loading: false,
+        error: parseErrorMessage(error),
+        dataset: null,
+      });
+    }
   };
 
   const utilization = campaignData
@@ -996,6 +1031,125 @@ export default function App({
                       <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 1.5, marginBottom: 5 }}>LEAF_ENCODING</div>
                       <div style={{ fontFamily: MONO, fontSize: 12, color: TEXT, lineHeight: 1.7 }}>{campaignData.leaf_encoding}</div>
                     </div>
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 28, animation: "fadeUp .6s .7s both" }}>
+                  <div style={{ fontFamily: MONO, fontSize: 9, color: MUTED2, letterSpacing: 2, marginBottom: 12 }}>
+                    FILECOIN_DATA
+                  </div>
+                  <div
+                    style={{
+                      border: `1px solid ${BORDER}`,
+                      background: "rgba(4,20,24,.7)",
+                      padding: 18,
+                    }}
+                  >
+                    <div style={{ fontFamily: MONO, fontSize: 11, color: TEXT, lineHeight: 1.8, marginBottom: 14 }}>
+                      The recipient dataset lives in the Filecoin-backed payload. Anyone can fetch it, rebuild the
+                      Merkle tree locally, and derive their own proof path.
+                    </div>
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+                      {campaignData.filecoin_url ? (
+                        <a
+                          href={campaignData.filecoin_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            fontFamily: MONO,
+                            fontSize: 10,
+                            letterSpacing: 2,
+                            textDecoration: "none",
+                            color: BG,
+                            background: CYAN,
+                            border: `1px solid ${CYAN}`,
+                            padding: "10px 14px",
+                          }}
+                        >
+                          OPEN FILECOIN TX
+                        </a>
+                      ) : null}
+                      {campaignData.filecoin_payload_url ? (
+                        <a
+                          href={resolveApiUrl(campaignData.filecoin_payload_url)}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            fontFamily: MONO,
+                            fontSize: 10,
+                            letterSpacing: 2,
+                            textDecoration: "none",
+                            color: CYAN,
+                            border: `1px solid rgba(0,255,200,.28)`,
+                            background: "rgba(0,255,200,.06)",
+                            padding: "10px 14px",
+                          }}
+                        >
+                          OPEN FILECOIN PAYLOAD
+                        </a>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void handleLoadFilecoinDataset();
+                        }}
+                        style={{
+                          fontFamily: MONO,
+                          fontSize: 10,
+                          letterSpacing: 2,
+                          color: CYAN,
+                          border: `1px solid rgba(0,255,200,.28)`,
+                          background: "transparent",
+                          padding: "10px 14px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {filecoinState.loading ? "LOADING DATA..." : "SHOW DATA FROM FILECOIN"}
+                      </button>
+                    </div>
+
+                    {campaignData.payload_hash ? (
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 1.5, marginBottom: 5 }}>
+                          PAYLOAD_HASH
+                        </div>
+                        <div style={{ fontFamily: MONO, fontSize: 12, color: CYAN, lineHeight: 1.7, wordBreak: "break-all" }}>
+                          {campaignData.payload_hash}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {filecoinState.error ? (
+                      <div style={{ fontFamily: MONO, fontSize: 10, color: "#c79696", lineHeight: 1.8 }}>
+                        {filecoinState.error}
+                      </div>
+                    ) : null}
+
+                    {filecoinState.dataset ? (
+                      <div>
+                        <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 1.5, marginBottom: 8 }}>
+                          DATASET_JSON
+                        </div>
+                        <pre
+                          style={{
+                            margin: 0,
+                            fontFamily: MONO,
+                            fontSize: 10,
+                            color: TEXT,
+                            lineHeight: 1.8,
+                            whiteSpace: "pre-wrap",
+                            wordBreak: "break-word",
+                            maxHeight: 360,
+                            overflow: "auto",
+                            border: `1px solid ${BORDER}`,
+                            background: "rgba(2,13,15,.9)",
+                            padding: 14,
+                          }}
+                        >
+                          {JSON.stringify(filecoinState.dataset, null, 2)}
+                        </pre>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
 
