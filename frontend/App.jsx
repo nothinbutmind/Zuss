@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { appConfig, getNetworkName, resolveApiUrl } from "./config.js";
+import { appConfig, resolveApiUrl } from "./config.js";
 import {
   buildWalletAccountForChain,
   connectWalletForChain,
@@ -19,7 +19,7 @@ const LEGACY_VAULT_HASH = "#/vault";
 const PROTOCOLS_HASH = "#/protocols";
 const DOCS_URL = "https://deepwiki.com/nothinbutmind/ZUS_Protocol";
 const SUBTITLE =
-  "Zus unifies Filecoin and Starknet in one app. Campaign data and Merkle trees stay off-chain in the shared Rust plus Filecoin layer, the browser handles campaign management and eligibility checks, and private claim bundles are generated locally before relaying to Starknet Cairo contracts.";
+  "Filecoin-backed campaign data. Starknet payouts. Private claims generated locally.";
 
 const EMPTY_WALLET = {
   account: "",
@@ -151,13 +151,12 @@ function TypewriterSub() {
 
   const highlight = (value) => {
     const parts = value.split(
-      /(Filecoin and Starknet|campaign data and Merkle trees stay off-chain|the browser handles campaign management and eligibility checks|relaying to Starknet Cairo contracts)/g,
+      /(Filecoin-backed campaign data|Starknet payouts|Private claims generated locally)/g,
     );
     return parts.map((part, index) =>
-      part === "Filecoin and Starknet" ||
-      part === "campaign data and Merkle trees stay off-chain" ||
-      part === "the browser handles campaign management and eligibility checks" ||
-      part === "relaying to Starknet Cairo contracts" ? (
+      part === "Filecoin-backed campaign data" ||
+      part === "Starknet payouts" ||
+      part === "Private claims generated locally" ? (
         <span key={index} style={{ color: "#00ddb0" }}>
           {part}
         </span>
@@ -178,7 +177,7 @@ function TypewriterSub() {
         margin: "28px auto 40px",
         lineHeight: 2,
         animation: "fadeUp .9s .6s both",
-        minHeight: 96,
+        minHeight: 56,
       }}
     >
       {highlight(text)}
@@ -997,108 +996,6 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
             </Btn>
           </div>
 
-          <div
-            style={{
-              marginTop: 28,
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
-              gap: 14,
-              maxWidth: 980,
-              marginInline: "auto",
-              animation: "fadeUp .9s 1s both",
-            }}
-          >
-            {[
-              {
-                tag: "DOCS_LINK",
-                title: "PROJECT DOCS",
-                desc:
-                  "Open the DeepWiki documentation for the full architecture, contracts, relayer flow, and Starknet rebuild details.",
-                action: "OPEN DEEPWIKI",
-              },
-              {
-                tag: "OFFCHAIN_LAYER",
-                title: "FILECOIN + RUST API",
-                desc:
-                  "Campaign metadata, recipient sets, and Merkle trees stay off-chain here as the shared source of truth for the Starknet payment path.",
-              },
-              {
-                tag: "STARKNET_PATH",
-                title: "STARKNET CAIRO CONTRACTS",
-                desc:
-                  "The app routes claims to the Cairo contracts, relayed Starknet submission flow, and stealth recovery path.",
-              },
-              {
-                tag: "PRIVATE_PAYMENT_PATH",
-                title: "RELAYER + STEALTH PAYOUTS",
-                desc:
-                  "Users prepare the claim locally, the relayer broadcasts on Starknet, and funds land on a one-time stealth address.",
-              },
-            ].map((item) => (
-              <div
-                key={item.tag}
-                style={{
-                  textAlign: "left",
-                  border: "1px solid rgba(0,255,200,.12)",
-                  background: "rgba(0,255,200,.03)",
-                  padding: "18px 18px 20px",
-                  boxShadow: "0 0 18px rgba(0,255,200,.04)",
-                }}
-              >
-                <div
-                  style={{
-                    fontFamily: "'Share Tech Mono',monospace",
-                    fontSize: 10,
-                    color: "#2a5550",
-                    letterSpacing: 2,
-                    marginBottom: 10,
-                  }}
-                >
-                  {item.tag}
-                </div>
-                <div
-                  style={{
-                    fontFamily: "'Share Tech Mono',monospace",
-                    fontSize: 15,
-                    color: "#00ffc8",
-                    letterSpacing: 1.4,
-                    marginBottom: 10,
-                  }}
-                >
-                  {item.title}
-                </div>
-                <div
-                  style={{
-                    fontFamily: "'Share Tech Mono',monospace",
-                    fontSize: 12,
-                    color: "#3a6660",
-                    lineHeight: 1.8,
-                  }}
-                >
-                  {item.desc}
-                </div>
-                {item.action ? (
-                  <a
-                    href={DOCS_URL}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{
-                      display: "inline-block",
-                      marginTop: 14,
-                      fontFamily: "'Share Tech Mono',monospace",
-                      fontSize: 11,
-                      letterSpacing: 1.8,
-                      color: "#00ddb0",
-                      textDecoration: "none",
-                    }}
-                  >
-                    {item.action}
-                  </a>
-                ) : null}
-              </div>
-            ))}
-          </div>
-
         </div>
       </section>
 
@@ -1423,100 +1320,9 @@ export default function App() {
     const campaignChain = normalizeChainKey(campaign.execution_chain || selectedChain);
     return campaignChain === selectedChain;
   });
-  const selectedChainLabel = "Starknet";
-  const selectedWalletHint = "Argent X / Braavos";
-  const chainSelector = (
-    <div
-      style={{
-        position: "fixed",
-        top: 16,
-        right: 18,
-        zIndex: 160,
-        display: "flex",
-        flexDirection: "column",
-        gap: 10,
-        padding: 12,
-        minWidth: 220,
-        border: "1px solid rgba(0,255,200,.18)",
-        background: "rgba(2,13,15,.96)",
-        boxShadow: "0 0 22px rgba(0,255,200,.08)",
-      }}
-    >
-      <div>
-        <div
-          style={{
-            fontFamily: "'Share Tech Mono',monospace",
-            fontSize: 9,
-            letterSpacing: 2,
-            color: "#4a7a72",
-            marginBottom: 6,
-          }}
-        >
-          ACTIVE NETWORK
-        </div>
-        <div
-          style={{
-            fontFamily: "'Share Tech Mono',monospace",
-            fontSize: 12,
-            letterSpacing: 1.4,
-            color: "#00ffc8",
-            marginBottom: 4,
-          }}
-        >
-          {selectedChainLabel.toUpperCase()}
-        </div>
-        <div
-          style={{
-            fontFamily: "'Share Tech Mono',monospace",
-            fontSize: 9,
-            letterSpacing: 1,
-            color: "#3a6660",
-            lineHeight: 1.6,
-          }}
-        >
-          {getNetworkName(selectedChain)} · {selectedWalletHint}
-        </div>
-      </div>
-
-      <div
-        style={{
-          fontFamily: "'Share Tech Mono',monospace",
-          fontSize: 9,
-          letterSpacing: 1,
-          color: "#3a6660",
-          lineHeight: 1.7,
-        }}
-      >
-        Starknet mode uses the Cairo contracts, relayed claims, and stealth recovery note download.
-      </div>
-      <a
-        href={DOCS_URL}
-        target="_blank"
-        rel="noreferrer"
-        style={{
-          fontFamily: "'Share Tech Mono',monospace",
-          fontSize: 10,
-          letterSpacing: 1.6,
-          color: "#00ddb0",
-          textDecoration: "none",
-          borderTop: "1px solid rgba(0,255,200,.08)",
-          paddingTop: 10,
-        }}
-      >
-        OPEN DOCS
-      </a>
-    </div>
-  );
-
-  const renderWithChainSelector = (child) => (
-    <>
-      {chainSelector}
-      {child}
-    </>
-  );
 
   if (route === "campaigns") {
-    return renderWithChainSelector(
+    return (
       <ZusCampaigns
         wallet={wallet}
         onConnect={connectWallet}
@@ -1528,7 +1334,7 @@ export default function App() {
   }
 
   if (route === "dashboard") {
-    return renderWithChainSelector(
+    return (
       <ZusDashboard
         wallet={wallet}
         onConnect={connectWallet}
@@ -1543,7 +1349,7 @@ export default function App() {
   }
 
   if (route === "rewards") {
-    return renderWithChainSelector(
+    return (
       <ZusRewards
         wallet={wallet}
         onConnect={connectWallet}
@@ -1558,7 +1364,7 @@ export default function App() {
   }
 
   if (route === "protocols") {
-    return renderWithChainSelector(
+    return (
       <ZusProtocolDetail
         wallet={wallet}
         onConnect={connectWallet}
@@ -1572,7 +1378,7 @@ export default function App() {
     );
   }
 
-  return renderWithChainSelector(
+  return (
     <>
       {wallet.error ? (
         <div
