@@ -1,7 +1,4 @@
 import { createServer } from "node:http";
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   Account,
   Contract as StarknetContract,
@@ -11,13 +8,45 @@ import {
   validateAndParseAddress,
 } from "starknet";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const STARKNET_DIR = resolve(__dirname, "..");
-const TARGET_DIR = join(STARKNET_DIR, "target", "dev");
-const PROTOCOL_ARTIFACT = join(TARGET_DIR, "zus_protocol_starknet_ZusProtocol.contract_class.json");
 const DEFAULT_PORT = 4000;
 const DEFAULT_STARKNET_RPC_URL = "https://starknet-sepolia.public.blastapi.io/rpc/v0_8";
+const ZUS_PROTOCOL_ABI = [
+  {
+    type: "struct",
+    name: "zus_protocol_starknet::types::ClaimPublicInputs",
+    members: [
+      { name: "message_domain", type: "core::felt252" },
+      { name: "eligible_root", type: "core::felt252" },
+      { name: "ephemeral_pubkey_x", type: "core::felt252" },
+      { name: "ephemeral_pubkey_y", type: "core::felt252" },
+      { name: "nullifier_hash", type: "core::felt252" },
+      {
+        name: "stealth_address",
+        type: "core::starknet::contract_address::ContractAddress",
+      },
+    ],
+  },
+  {
+    type: "interface",
+    name: "zus_protocol_starknet::contracts::zus_protocol::IZusProtocol",
+    items: [
+      {
+        type: "function",
+        name: "claim",
+        inputs: [
+          { name: "campaign_id", type: "core::felt252" },
+          {
+            name: "claim",
+            type: "zus_protocol_starknet::types::ClaimPublicInputs",
+          },
+          { name: "proof", type: "core::array::Span::<core::felt252>" },
+        ],
+        outputs: [],
+        state_mutability: "external",
+      },
+    ],
+  },
+];
 
 function requireEnv(name) {
   const value = process.env[name]?.trim();
@@ -63,17 +92,6 @@ function validateStarknetClaim(claim) {
   };
 }
 
-function loadStarknetProtocolAbi() {
-  if (!existsSync(PROTOCOL_ARTIFACT)) {
-    throw new Error(
-      `Protocol artifact not found at ${PROTOCOL_ARTIFACT}. Run 'scarb build' in starknet/ before starting the relayer.`,
-    );
-  }
-
-  const artifact = json.parse(readFileSync(PROTOCOL_ARTIFACT, "utf8"));
-  return artifact.abi;
-}
-
 async function relayStarknetClaim(body, context) {
   validateStarknetProof(body.proof);
 
@@ -114,7 +132,7 @@ async function main() {
   const starknetProtocolAddress = normalizeStarknetAddress(requireEnv("ZUS_PROTOCOL_ADDRESS"));
   const starknetRelayerAddress = normalizeStarknetAddress(requireEnv("RELAYER_ACCOUNT_ADDRESS"));
   const starknetRelayerPrivateKey = requireEnv("RELAYER_PRIVATE_KEY");
-  const starknetProtocolAbi = loadStarknetProtocolAbi();
+  const starknetProtocolAbi = ZUS_PROTOCOL_ABI;
   const starknetChainId = process.env.STARKNET_CHAIN_ID?.trim() || "SN_SEPOLIA";
   const starknetRelayerAccount = new Account({
     provider: starknetProvider,
