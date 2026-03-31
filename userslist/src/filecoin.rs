@@ -115,10 +115,6 @@ impl FilecoinClient {
     ) -> Result<FilecoinUpload, AppError> {
         let wallet = self.require_wallet()?;
         let registry_address = self.require_registry_address()?;
-        let creator = registry_address_from_hex(
-            &summary.campaign_creator_address,
-            "campaign_creator_address",
-        )?;
         let from = wallet.address();
 
         let payload = build_published_payload(summary, claims);
@@ -127,7 +123,10 @@ impl FilecoinClient {
                 "failed to serialize campaign payload for Filecoin: {error}"
             ))
         })?;
-        let data = encode_registry_create_campaign(summary, claims, &payload_json, creator)?;
+        // The Filecoin registry contract requires campaignCreatorAddress == msg.sender.
+        // We keep the user-facing Starknet creator inside the published payload while
+        // registering the campaign on Filecoin under the signer that posts the tx.
+        let data = encode_registry_create_campaign(summary, claims, &payload_json, from)?;
         if data.len() > MAX_CALLDATA_BYTES {
             return Err(AppError::bad_request(format!(
                 "campaign transaction calldata is {} bytes, which is too large for direct Filecoin testnet posting; keep it under {} bytes",
