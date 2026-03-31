@@ -702,6 +702,9 @@ function EmptyCampaignState({ loading, error }) {
 function StatusMessage({ createState, pendingDeployment, selectedChain }) {
   const explorerUrl = makeExplorerUrl(createState.txHash, selectedChain);
   const filecoinUrl = createState.apiCampaign?.filecoin_url || "";
+  const filecoinPayloadUrl = createState.apiCampaign?.filecoin_payload_url
+    ? resolveApiUrl(createState.apiCampaign.filecoin_payload_url)
+    : "";
 
   if (createState.error) {
     return (
@@ -768,6 +771,48 @@ function StatusMessage({ createState, pendingDeployment, selectedChain }) {
           </>
         ) : null}
       </div>
+      {filecoinUrl || filecoinPayloadUrl ? (
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+          {filecoinUrl ? (
+            <a
+              href={filecoinUrl}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                fontFamily: MONO,
+                fontSize: 10,
+                letterSpacing: 2,
+                textDecoration: "none",
+                color: BG,
+                background: CYAN,
+                border: `1px solid ${CYAN}`,
+                padding: "10px 14px",
+              }}
+            >
+              OPEN FILECOIN TX
+            </a>
+          ) : null}
+          {filecoinPayloadUrl ? (
+            <a
+              href={filecoinPayloadUrl}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                fontFamily: MONO,
+                fontSize: 10,
+                letterSpacing: 2,
+                textDecoration: "none",
+                color: CYAN,
+                border: `1px solid rgba(0,255,200,.28)`,
+                background: "rgba(0,255,200,.06)",
+                padding: "10px 14px",
+              }}
+            >
+              OPEN FILECOIN DATASET
+            </a>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
