@@ -2,10 +2,10 @@ use crate::{
     error::AppError,
     filecoin::FilecoinClient,
     types::{
-        CampaignSummary, ClaimLookupRequest, ClaimPayloadResponse, CreateCampaignRequest,
-        CreatorCampaignsResponse, FilecoinCampaignResponse, HealthResponse, NoirClaimInputs,
-        PreparedCampaign, PreparedClaim, PublishedCampaignPayload, PublishedRecipient,
-        RecipientInput,
+        CampaignDatasetResponse, CampaignSummary, ClaimLookupRequest, ClaimPayloadResponse,
+        CreateCampaignRequest, CreatorCampaignsResponse, FilecoinCampaignResponse,
+        HealthResponse, NoirClaimInputs, PreparedCampaign, PreparedClaim,
+        PublishedCampaignPayload, PublishedRecipient, RecipientInput,
     },
 };
 use acir_field::{AcirField, FieldElement};
@@ -59,9 +59,12 @@ pub async fn create_campaign(
     let upload = filecoin
         .upload_campaign(&prepared.summary, &prepared.claims)
         .await?;
+    let published_payload = build_published_payload(&prepared.summary, &prepared.claims);
     prepared.summary.filecoin_cid = None;
     prepared.summary.filecoin_url = Some(upload.url);
-    prepared.summary.filecoin_tx_hash = Some(upload.tx_hash);
+    prepared.summary.filecoin_tx_hash = Some(upload.tx_hash.clone());
+    prepared.summary.filecoin_payload_url = Some(format!("/filecoin/tx/{}", upload.tx_hash));
+    prepared.summary.payload_hash = Some(filecoin.payload_hash_hex(&published_payload)?);
 
     Ok(Json(prepared.summary))
 }
@@ -77,10 +80,12 @@ pub async fn get_filecoin_campaign(
     })?;
     let payload = filecoin.fetch_published_campaign(&tx_hash).await?;
     let (campaign, claims) = reconstruct_campaign_from_published(&payload, &tx_hash)?;
+    let payload_hash = filecoin.payload_hash_hex(&payload)?;
 
     Ok(Json(FilecoinCampaignResponse {
         tx_hash: tx_hash.clone(),
         filecoin_url: format!("https://calibration.filfox.info/en/message/{}", tx_hash),
+        payload_hash,
         payload,
         campaign,
         claims,
@@ -129,6 +134,26 @@ pub async fn get_campaign(
             .await?
             .summary,
     ))
+}
+
+pub async fn get_campaign_dataset(
+    State(state): State<SharedState>,
+    Path(campaign_id): Path<String>,
+) -> Result<Json<CampaignDatasetResponse>, AppError> {
+    let campaign_id = parse_campaign_id(&campaign_id)?;
+    let onchain_campaign_id = uuid_to_onchain_campaign_id(campaign_id);
+    let filecoin = state.filecoin.as_ref().ok_or_else(|| {
+        AppError::bad_request("FILECOIN_REGISTRY_ADDRESS must be set to fetch campaign datasets")
+    })?;
+    let registered = filecoin
+        .fetch_registered_campaign(&onchain_campaign_id)
+        .await?;
+
+    Ok(Json(CampaignDatasetResponse {
+        payload_hash: filecoin.payload_hash_hex(&registered.payload)?,
+        campaign: registered.summary,
+        payload: registered.payload,
+    }))
 }
 
 pub async fn get_claim_payload_by_path(
@@ -244,9 +269,35 @@ fn reconstruct_campaign_from_published(
                 "https://calibration.filfox.info/en/message/{tx_hash}"
             )),
             filecoin_tx_hash: Some(tx_hash.to_string()),
+            filecoin_payload_url: Some(format!("/filecoin/tx/{tx_hash}")),
+            payload_hash: None,
         },
         claims,
     ))
+}
+
+fn build_published_payload(
+    summary: &CampaignSummary,
+    claims: &[PreparedClaim],
+) -> PublishedCampaignPayload {
+    PublishedCampaignPayload {
+        version: 1,
+        campaign: crate::types::PublishedCampaign {
+            campaign_id: summary.campaign_id.clone(),
+            onchain_campaign_id: summary.onchain_campaign_id.clone(),
+            name: summary.name.clone(),
+            campaign_creator_address: summary.campaign_creator_address.clone(),
+            merkle_root: summary.merkle_root.clone(),
+            execution_chain: summary.execution_chain.clone(),
+        },
+        recipients: claims
+            .iter()
+            .map(|claim| PublishedRecipient {
+                leaf_address: claim.leaf_address.clone(),
+                amount: claim.amount.clone(),
+            })
+            .collect(),
+    }
 }
 
 fn reconstruct_claims_from_published(
@@ -381,6 +432,8 @@ fn prepare_campaign(payload: CreateCampaignRequest) -> Result<PreparedCampaign, 
             filecoin_cid: None,
             filecoin_url: None,
             filecoin_tx_hash: None,
+            filecoin_payload_url: None,
+            payload_hash: None,
         },
         claims,
     })
@@ -421,6 +474,8 @@ fn claim_payload_from_components(
         filecoin_cid: campaign.filecoin_cid.clone(),
         filecoin_url: campaign.filecoin_url.clone(),
         filecoin_tx_hash: campaign.filecoin_tx_hash.clone(),
+        filecoin_payload_url: campaign.filecoin_payload_url.clone(),
+        payload_hash: campaign.payload_hash.clone(),
         noir_inputs: NoirClaimInputs {
             eligible_root: campaign.merkle_root.clone(),
             eligible_path: claim.proof.clone(),

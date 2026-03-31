@@ -15,6 +15,7 @@ use ethers_core::{
 };
 use ethers_signers::{LocalWallet, Signer};
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use std::{env, str::FromStr};
 
 const DEFAULT_RPC_URL: &str = "https://rpc.ankr.com/filecoin_testnet";
@@ -154,6 +155,7 @@ impl FilecoinClient {
             .await?;
         let payload_log = self.fetch_payload_log(campaign_key).await?;
         validate_registry_payload(&meta, &payload_log.payload)?;
+        let tx_hash = payload_log.tx_hash.clone();
 
         Ok(RegisteredCampaign {
             summary: CampaignSummary {
@@ -168,8 +170,10 @@ impl FilecoinClient {
                 hash_algorithm: meta.hash_algorithm.clone(),
                 leaf_encoding: meta.leaf_encoding.clone(),
                 filecoin_cid: None,
-                filecoin_url: Some(self.explorer_url(&payload_log.tx_hash)),
-                filecoin_tx_hash: Some(payload_log.tx_hash),
+                filecoin_url: Some(self.explorer_url(&tx_hash)),
+                filecoin_tx_hash: Some(tx_hash.clone()),
+                filecoin_payload_url: Some(format!("/filecoin/tx/{}", tx_hash)),
+                payload_hash: Some(self.payload_hash_hex(&payload_log.payload)?),
             },
             payload: payload_log.payload,
         })
@@ -250,6 +254,7 @@ impl FilecoinClient {
                 .await?;
             let payload_log = self.fetch_payload_log(campaign_key).await?;
             validate_registry_payload(&meta, &payload_log.payload)?;
+            let tx_hash = payload_log.tx_hash.clone();
             summaries.push(CampaignSummary {
                 campaign_id: payload_log.payload.campaign.campaign_id.clone(),
                 onchain_campaign_id: meta.onchain_campaign_id.clone(),
@@ -262,8 +267,10 @@ impl FilecoinClient {
                 hash_algorithm: meta.hash_algorithm.clone(),
                 leaf_encoding: meta.leaf_encoding.clone(),
                 filecoin_cid: None,
-                filecoin_url: Some(self.explorer_url(&payload_log.tx_hash)),
-                filecoin_tx_hash: Some(payload_log.tx_hash),
+                filecoin_url: Some(self.explorer_url(&tx_hash)),
+                filecoin_tx_hash: Some(tx_hash.clone()),
+                filecoin_payload_url: Some(format!("/filecoin/tx/{}", tx_hash)),
+                payload_hash: Some(self.payload_hash_hex(&payload_log.payload)?),
             });
         }
 
@@ -307,6 +314,7 @@ impl FilecoinClient {
                 .await?;
             let payload_log = self.fetch_payload_log(campaign_key).await?;
             validate_registry_payload(&meta, &payload_log.payload)?;
+            let tx_hash = payload_log.tx_hash.clone();
             summaries.push(CampaignSummary {
                 campaign_id: payload_log.payload.campaign.campaign_id.clone(),
                 onchain_campaign_id: meta.onchain_campaign_id.clone(),
@@ -319,8 +327,10 @@ impl FilecoinClient {
                 hash_algorithm: meta.hash_algorithm.clone(),
                 leaf_encoding: meta.leaf_encoding.clone(),
                 filecoin_cid: None,
-                filecoin_url: Some(self.explorer_url(&payload_log.tx_hash)),
-                filecoin_tx_hash: Some(payload_log.tx_hash),
+                filecoin_url: Some(self.explorer_url(&tx_hash)),
+                filecoin_tx_hash: Some(tx_hash.clone()),
+                filecoin_payload_url: Some(format!("/filecoin/tx/{}", tx_hash)),
+                payload_hash: Some(self.payload_hash_hex(&payload_log.payload)?),
             });
         }
 
@@ -357,6 +367,19 @@ impl FilecoinClient {
             })?;
 
         decode_payload_from_transaction_input(input, tx_hash)
+    }
+
+    pub fn payload_hash_hex(
+        &self,
+        payload: &PublishedCampaignPayload,
+    ) -> Result<String, AppError> {
+        let payload_json = serde_json::to_vec(payload).map_err(|error| {
+            AppError::internal(format!(
+                "failed to serialize Filecoin campaign payload for hashing: {error}"
+            ))
+        })?;
+        let digest = Sha256::digest(payload_json);
+        Ok(format!("0x{}", hex::encode(digest)))
     }
 
     fn require_wallet(&self) -> Result<LocalWallet, AppError> {

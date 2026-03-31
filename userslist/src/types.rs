@@ -68,6 +68,10 @@ pub struct CampaignSummary {
     pub filecoin_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filecoin_tx_hash: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filecoin_payload_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payload_hash: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -107,6 +111,10 @@ pub struct ClaimPayloadResponse {
     pub filecoin_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filecoin_tx_hash: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filecoin_payload_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payload_hash: Option<String>,
     pub noir_inputs: NoirClaimInputs,
 }
 
@@ -114,9 +122,17 @@ pub struct ClaimPayloadResponse {
 pub struct FilecoinCampaignResponse {
     pub tx_hash: String,
     pub filecoin_url: String,
+    pub payload_hash: String,
     pub payload: PublishedCampaignPayload,
     pub campaign: CampaignSummary,
     pub claims: Vec<PreparedClaim>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CampaignDatasetResponse {
+    pub campaign: CampaignSummary,
+    pub payload_hash: String,
+    pub payload: PublishedCampaignPayload,
 }
 
 #[derive(Debug, Clone)]

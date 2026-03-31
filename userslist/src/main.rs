@@ -6,8 +6,8 @@ mod types;
 use crate::filecoin::FilecoinClient;
 use crate::merkle::{
     AppState, create_campaign, get_campaign, get_claim_payload_by_body, get_claim_payload_by_path,
-    get_filecoin_campaign, get_filecoin_claim_payload_by_path, health, list_campaigns,
-    list_creator_campaigns,
+    get_campaign_dataset, get_filecoin_campaign, get_filecoin_claim_payload_by_path, health,
+    list_campaigns, list_creator_campaigns,
 };
 use axum::{
     Router,
@@ -35,6 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/health", get(health))
         .route("/campaigns", get(list_campaigns).post(create_campaign))
         .route("/campaigns/{campaign_id}", get(get_campaign))
+        .route("/campaigns/{campaign_id}/dataset", get(get_campaign_dataset))
         .route("/filecoin/tx/{tx_hash}", get(get_filecoin_campaign))
         .route(
             "/filecoin/tx/{tx_hash}/claim/{leaf_address}",
