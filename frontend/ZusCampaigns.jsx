@@ -55,13 +55,31 @@ function parseErrorMessage(error) {
     return error;
   }
 
-  return (
-    error?.shortMessage ||
-    error?.details ||
-    error?.message ||
-    error?.cause?.message ||
-    "Something went wrong."
-  );
+  const candidates = [
+    error?.shortMessage,
+    error?.details,
+    error?.message,
+    error?.cause?.message,
+    error?.error?.message,
+    error?.data?.message,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim() && candidate !== "[object Object]") {
+      return candidate;
+    }
+  }
+
+  try {
+    const serialized = JSON.stringify(error, null, 2);
+    if (serialized && serialized !== "{}") {
+      return serialized;
+    }
+  } catch {
+    // Fall through to the generic message below.
+  }
+
+  return "Something went wrong.";
 }
 
 async function readJson(response) {
