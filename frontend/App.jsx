@@ -19,7 +19,7 @@ const LEGACY_VAULT_HASH = "#/vault";
 const PROTOCOLS_HASH = "#/protocols";
 const DOCS_URL = "https://deepwiki.com/nothinbutmind/ZUS_Protocol";
 const SUBTITLE =
-  "Filecoin-backed campaign data. Starknet payouts. Private claims generated locally.";
+  "Filecoin-backed campaign data and Merkle trees stay off-chain. Starknet handles payouts. Private claims are prepared locally.";
 
 const EMPTY_WALLET = {
   account: "",
@@ -151,12 +151,12 @@ function TypewriterSub() {
 
   const highlight = (value) => {
     const parts = value.split(
-      /(Filecoin-backed campaign data|Starknet payouts|Private claims generated locally)/g,
+      /(Filecoin-backed campaign data and Merkle trees stay off-chain|Starknet handles payouts|Private claims are prepared locally)/g,
     );
     return parts.map((part, index) =>
-      part === "Filecoin-backed campaign data" ||
-      part === "Starknet payouts" ||
-      part === "Private claims generated locally" ? (
+      part === "Filecoin-backed campaign data and Merkle trees stay off-chain" ||
+      part === "Starknet handles payouts" ||
+      part === "Private claims are prepared locally" ? (
         <span key={index} style={{ color: "#00ddb0" }}>
           {part}
         </span>
@@ -177,7 +177,7 @@ function TypewriterSub() {
         margin: "28px auto 40px",
         lineHeight: 2,
         animation: "fadeUp .9s .6s both",
-        minHeight: 56,
+        minHeight: 82,
       }}
     >
       {highlight(text)}
