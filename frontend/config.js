@@ -96,10 +96,6 @@ export function getCreateCampaignConfigErrors() {
     issues.push("VITE_API_BASE_URL");
   }
 
-  if (!appConfig.relayerUrl) {
-    issues.push("VITE_ZUS_RELAYER_URL");
-  }
-
   if (!appConfig.starknet.rpcUrl) {
     issues.push("VITE_STARKNET_RPC_URL");
   }
