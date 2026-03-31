@@ -19,7 +19,6 @@ const TREE_DEPTH = 12;
 const NULLIFIER_DOMAIN = BigInt(shortString.encodeShortString("NULLIFIER_V1"));
 const STEALTH_ADDR_DOMAIN = BigInt(shortString.encodeShortString("STEALTH_ADDR"));
 const RETRY_ADDR_DOMAIN = BigInt(shortString.encodeShortString("STEALTH_RETRY"));
-const WITNESS_SEED_DOMAIN = BigInt(shortString.encodeShortString("ZUS_WITNESS"));
 const STEALTH_TWEAK_DOMAIN = BigInt(shortString.encodeShortString("STEALTH_TWEAK"));
 
 function getBrowserCrypto() {
@@ -186,18 +185,6 @@ function deriveStealthAddress({
   return stealthAddress;
 }
 
-function randomScalarHex() {
-  const bytes = new Uint8Array(32);
-  getBrowserCrypto().getRandomValues(bytes);
-
-  let value = 0n;
-  for (const byte of bytes) {
-    value = (value << 8n) + BigInt(byte);
-  }
-
-  return nonZeroFeltHex(value);
-}
-
 function verifyMerkleMembership(leafAddress, root, proofPath, leafIndex) {
   if (proofPath.length !== TREE_DEPTH) {
     return false;
@@ -215,72 +202,6 @@ function verifyMerkleMembership(leafAddress, root, proofPath, leafIndex) {
   }
 
   return toBigIntFelt(current) === toBigIntFelt(root);
-}
-
-function buildWitnessSeedTypedData(chainId, claimantAddress, campaignId, eligibleRoot) {
-  return {
-    types: {
-      StarknetDomain: [
-        { name: "name", type: "shortstring" },
-        { name: "version", type: "shortstring" },
-        { name: "chainId", type: "shortstring" },
-      ],
-      WitnessSeed: [
-        { name: "campaign_id", type: "felt" },
-        { name: "claimant_address", type: "ContractAddress" },
-        { name: "eligible_root", type: "felt" },
-      ],
-    },
-    primaryType: "WitnessSeed",
-    domain: {
-      name: "ZUS_RELAYER",
-      version: "1",
-      chainId,
-    },
-    message: {
-      campaign_id: campaignId,
-      claimant_address: claimantAddress,
-      eligible_root: eligibleRoot,
-    },
-  };
-}
-
-export function buildClaimAuthorizationTypedData(chainId, campaignId, claim) {
-  return {
-    types: {
-      StarknetDomain: [
-        { name: "name", type: "shortstring" },
-        { name: "version", type: "shortstring" },
-        { name: "chainId", type: "shortstring" },
-      ],
-      ClaimAuthorization: [
-        { name: "campaign_id", type: "felt" },
-        { name: "claimant_address", type: "ContractAddress" },
-        { name: "message_domain", type: "felt" },
-        { name: "eligible_root", type: "felt" },
-        { name: "ephemeral_pubkey_x", type: "felt" },
-        { name: "ephemeral_pubkey_y", type: "felt" },
-        { name: "nullifier_hash", type: "felt" },
-        { name: "stealth_address", type: "ContractAddress" },
-      ],
-    },
-    primaryType: "ClaimAuthorization",
-    domain: {
-      name: "ZUS_RELAYER",
-      version: "1",
-      chainId,
-    },
-    message: {
-      campaign_id: campaignId,
-      claimant_address: claim.claimant_address,
-      message_domain: claim.message_domain,
-      eligible_root: claim.eligible_root,
-      ephemeral_pubkey_x: claim.ephemeral_pubkey_x,
-      ephemeral_pubkey_y: claim.ephemeral_pubkey_y,
-      nullifier_hash: claim.nullifier_hash,
-      stealth_address: claim.stealth_address,
-    },
-  };
 }
 
 export async function hashTextToFelt(text) {
@@ -386,97 +307,4 @@ export async function executeCampaignDeployment({
   const response = await walletAccount.execute(calls);
   await getRpcProvider(rpcUrl).waitForTransaction(response.transaction_hash);
   return response.transaction_hash;
-}
-
-export async function prepareRelayedClaim({
-  walletAccount,
-  chainId,
-  claimPayload,
-  campaignMessage,
-}) {
-  const claimantAddress = normalizeStarknetAddress(claimPayload.leaf_address);
-  const campaignId = await coerceTextOrNumericToFelt(
-    claimPayload.onchain_campaign_id || claimPayload.campaign_id,
-  );
-  const messageDomain = encodeMessageDomain(campaignMessage);
-  const eligibleRoot = toFeltHex(claimPayload.merkle_root);
-  const eligiblePath = claimPayload.proof.map((value) => toFeltHex(value));
-  const eligibleIndex = Number(claimPayload.index);
-
-  if (!Number.isInteger(eligibleIndex) || eligibleIndex < 0) {
-    throw new Error("Invalid Merkle index returned by the campaign API.");
-  }
-
-  if (!verifyMerkleMembership(claimantAddress, eligibleRoot, eligiblePath, eligibleIndex)) {
-    throw new Error("The campaign proof returned by the API failed local Merkle verification.");
-  }
-
-  const witnessSeedTypedData = buildWitnessSeedTypedData(
-    chainId,
-    claimantAddress,
-    campaignId,
-    eligibleRoot,
-  );
-  const witnessSeedSignature = await walletAccount.signMessage(witnessSeedTypedData);
-  const walletSecret = poseidonElements([
-    WITNESS_SEED_DOMAIN,
-    campaignId,
-    claimantAddress,
-    ...witnessSeedSignature,
-  ]);
-  const ephemeralSecret = randomScalarHex();
-  const ephemeralPubkey = ec.starkCurve.ProjectivePoint.BASE
-    .multiply(toBigIntFelt(ephemeralSecret))
-    .toAffine();
-  const ephemeralPubkeyX = toFeltHex(ephemeralPubkey.x);
-  const ephemeralPubkeyY = toFeltHex(ephemeralPubkey.y);
-  const stealthTweak = derivePrivateStealthTweak({
-    walletSecret,
-    claimantAddress,
-    messageDomain,
-    eligibleRoot,
-    ephemeralPubkeyX,
-    ephemeralPubkeyY,
-  });
-  const stealthPrivateKey = deriveStealthPrivateKey(walletSecret, stealthTweak);
-
-  const claim = {
-    claimant_address: claimantAddress,
-    message_domain: toFeltHex(messageDomain),
-    eligible_root: eligibleRoot,
-    ephemeral_pubkey_x: ephemeralPubkeyX,
-    ephemeral_pubkey_y: ephemeralPubkeyY,
-    nullifier_hash: deriveNullifier(walletSecret, messageDomain),
-    stealth_address: deriveStealthAddress({
-      walletSecret,
-      claimantAddress,
-      messageDomain,
-      eligibleRoot,
-      ephemeralPubkeyX,
-      ephemeralPubkeyY,
-    }),
-  };
-
-  const authorizationTypedData = buildClaimAuthorizationTypedData(chainId, campaignId, claim);
-  const authorizationSignature = await walletAccount.signMessage(authorizationTypedData);
-
-  return {
-    campaign_id: campaignId,
-    claim,
-    proof: [walletSecret, toFeltHex(eligibleIndex), ...eligiblePath],
-    authorization: {
-      signature: authorizationSignature,
-      typed_data: authorizationTypedData,
-    },
-    local_recovery: {
-      wallet_secret: walletSecret,
-      claimant_address: claimantAddress,
-      message_domain: toFeltHex(messageDomain),
-      eligible_root: eligibleRoot,
-      ephemeral_pubkey_x: ephemeralPubkeyX,
-      ephemeral_pubkey_y: ephemeralPubkeyY,
-      stealth_private_key: stealthPrivateKey,
-      stealth_address: claim.stealth_address,
-    },
-  };
 }

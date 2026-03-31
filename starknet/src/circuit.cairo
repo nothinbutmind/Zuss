@@ -2,7 +2,7 @@ use core::ec::{EcPointTrait, stark_curve};
 use starknet::ContractAddress;
 use zus_protocol_starknet::merkle::verify_membership;
 use zus_protocol_starknet::nullifier::derive_nullifier;
-use zus_protocol_starknet::stealth::derive_stealth_address;
+use zus_protocol_starknet::stealth::{base_public_key_to_address, derive_stealth_address};
 
 #[derive(Copy, Drop, Serde)]
 pub struct CircuitOutputs {
@@ -26,7 +26,6 @@ pub struct CircuitOutputs {
 /// - `stealth_address`: one-time payout address derived from the wallet pubkey and tweak
 pub fn main(
     wallet_secret: felt252,
-    claimant_address: ContractAddress,
     message: felt252,
     eligible_root: felt252,
     ephemeral_pubkey_x: felt252,
@@ -43,11 +42,12 @@ pub fn main(
     let public_key_nz = public_key.try_into().unwrap();
     let (pubkey_x, pubkey_y) = public_key_nz.coordinates();
 
-    // The Merkle tree stores eligibility by the claimant's real wallet address. That address stays
-    // public in the proof inputs, while the relayer becomes the onchain caller and the payout still
-    // lands on a fresh stealth address.
-    let claimant_leaf: felt252 = claimant_address.into();
-    let eligible = verify_membership(claimant_leaf, eligible_root, eligible_path, eligible_index);
+    // Derive the eligible base address directly from the witness secret. This is the address that
+    // must be present in the Merkle tree, so the proof binds eligibility to the same secret that
+    // also determines the nullifier and stealth payout destination.
+    let eligible_address = base_public_key_to_address(pubkey_x, pubkey_y);
+    let eligible_leaf: felt252 = eligible_address.into();
+    let eligible = verify_membership(eligible_leaf, eligible_root, eligible_path, eligible_index);
     assert(eligible, 'NOT_ELIGIBLE');
 
     // Bind the claim to this wallet and campaign message so the same wallet cannot claim twice for
@@ -61,7 +61,7 @@ pub fn main(
         pubkey_x,
         pubkey_y,
         wallet_secret,
-        claimant_address,
+        eligible_address,
         message,
         eligible_root,
         ephemeral_pubkey_x,

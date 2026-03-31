@@ -8,14 +8,14 @@ const RETRY_ADDR_DOMAIN: felt252 = 'STEALTH_RETRY';
 const STEALTH_TWEAK_DOMAIN: felt252 = 'STEALTH_TWEAK';
 const STEALTH_ZERO_DOMAIN: felt252 = 'STEALTH_ZERO';
 
-/// Derives a private stealth tweak from the claimant secret plus an ephemeral public key.
+/// Derives a private stealth tweak from the eligible secret plus an ephemeral public key.
 ///
 /// This keeps the tweak itself out of the public claim payload. The verifier can still recompute
 /// it from public context plus the private wallet secret, while the claimant can recover it
 /// locally from the same inputs.
 pub fn derive_private_stealth_tweak(
     wallet_secret: felt252,
-    claimant_address: ContractAddress,
+    eligible_address: ContractAddress,
     message: felt252,
     eligible_root: felt252,
     ephemeral_pubkey_x: felt252,
@@ -29,12 +29,12 @@ pub fn derive_private_stealth_tweak(
         Option::Some(point) => point,
         Option::None => panic!("BAD_EPHEMERAL_PUBKEY"),
     };
-    let claimant_address_felt: felt252 = claimant_address.into();
+    let eligible_address_felt: felt252 = eligible_address.into();
 
     let candidate = PoseidonTrait::new()
         .update(STEALTH_TWEAK_DOMAIN)
         .update(wallet_secret)
-        .update(claimant_address_felt)
+        .update(eligible_address_felt)
         .update(message)
         .update(eligible_root)
         .update(ephemeral_pubkey_x)
@@ -49,7 +49,7 @@ pub fn derive_private_stealth_tweak(
 ///
 /// The flow mirrors stealth-address schemes used in other ecosystems:
 /// 1. Parse the base public key as a point on the STARK curve.
-/// 2. Derive a private tweak from the claimant secret, campaign context, and ephemeral pubkey.
+/// 2. Derive a private tweak from the eligible secret, campaign context, and ephemeral pubkey.
 /// 3. Compute `stealth_tweak * G`, where `G` is the STARK-curve generator.
 /// 4. Add that tweak point to the base public key to obtain a fresh one-time stealth pubkey.
 /// 5. Hash the resulting pubkey coordinates into a Starknet `ContractAddress`.
@@ -58,7 +58,7 @@ pub fn derive_stealth_address(
     base_pubkey_x: felt252,
     base_pubkey_y: felt252,
     wallet_secret: felt252,
-    claimant_address: ContractAddress,
+    eligible_address: ContractAddress,
     message: felt252,
     eligible_root: felt252,
     ephemeral_pubkey_x: felt252,
@@ -66,7 +66,7 @@ pub fn derive_stealth_address(
 ) -> ContractAddress {
     let stealth_tweak = derive_private_stealth_tweak(
         wallet_secret,
-        claimant_address,
+        eligible_address,
         message,
         eligible_root,
         ephemeral_pubkey_x,

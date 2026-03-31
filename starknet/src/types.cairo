@@ -15,7 +15,6 @@ pub struct CampaignConfig {
 
 #[derive(Copy, Drop, Serde, starknet::Store)]
 pub struct ClaimPublicInputs {
-    pub claimant_address: ContractAddress,
     pub message_domain: felt252,
     pub eligible_root: felt252,
     pub ephemeral_pubkey_x: felt252,

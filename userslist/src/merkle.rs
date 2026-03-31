@@ -798,9 +798,8 @@ fn normalize_address(address: &str) -> Result<String, AppError> {
 fn normalize_execution_chain(chain: Option<&str>) -> Result<String, AppError> {
     match chain.unwrap_or("starknet").trim().to_ascii_lowercase().as_str() {
         "starknet" => Ok("starknet".to_string()),
-        "flow" | "flow_evm" | "flow-evm" => Ok("flow_evm".to_string()),
         other => Err(AppError::bad_request(format!(
-            "unsupported execution_chain `{other}`; expected `starknet` or `flow_evm`"
+            "unsupported execution_chain `{other}`; expected `starknet`"
         ))),
     }
 }

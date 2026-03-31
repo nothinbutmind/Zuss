@@ -54,51 +54,12 @@ function validateStarknetClaim(claim) {
   }
 
   return {
-    claimant_address: normalizeStarknetAddress(claim.claimant_address),
     message_domain: `${claim.message_domain}`,
     eligible_root: `${claim.eligible_root}`,
     ephemeral_pubkey_x: `${claim.ephemeral_pubkey_x}`,
     ephemeral_pubkey_y: `${claim.ephemeral_pubkey_y}`,
     nullifier_hash: `${claim.nullifier_hash}`,
     stealth_address: normalizeStarknetAddress(claim.stealth_address),
-  };
-}
-
-function buildStarknetAuthorizationTypedData(chainId, campaignId, claim) {
-  return {
-    types: {
-      StarknetDomain: [
-        { name: "name", type: "shortstring" },
-        { name: "version", type: "shortstring" },
-        { name: "chainId", type: "shortstring" },
-      ],
-      ClaimAuthorization: [
-        { name: "campaign_id", type: "felt" },
-        { name: "claimant_address", type: "ContractAddress" },
-        { name: "message_domain", type: "felt" },
-        { name: "eligible_root", type: "felt" },
-        { name: "ephemeral_pubkey_x", type: "felt" },
-        { name: "ephemeral_pubkey_y", type: "felt" },
-        { name: "nullifier_hash", type: "felt" },
-        { name: "stealth_address", type: "ContractAddress" },
-      ],
-    },
-    primaryType: "ClaimAuthorization",
-    domain: {
-      name: "ZUS_RELAYER",
-      version: "1",
-      chainId,
-    },
-    message: {
-      campaign_id: `${campaignId}`,
-      claimant_address: claim.claimant_address,
-      message_domain: claim.message_domain,
-      eligible_root: claim.eligible_root,
-      ephemeral_pubkey_x: claim.ephemeral_pubkey_x,
-      ephemeral_pubkey_y: claim.ephemeral_pubkey_y,
-      nullifier_hash: claim.nullifier_hash,
-      stealth_address: claim.stealth_address,
-    },
   };
 }
 
@@ -116,22 +77,7 @@ function loadStarknetProtocolAbi() {
 async function relayStarknetClaim(body, context) {
   validateStarknetProof(body.proof);
 
-  if (!Array.isArray(body.authorization?.signature)) {
-    throw new Error("authorization.signature is required for Starknet claims.");
-  }
-
   const claim = validateStarknetClaim(body.claim);
-  const chainId = body.authorization?.typed_data?.domain?.chainId || context.chainId;
-  const authorizationTypedData = buildStarknetAuthorizationTypedData(chainId, body.campaign_id, claim);
-  const isAuthorized = await context.provider.verifyMessageInStarknet(
-    authorizationTypedData,
-    body.authorization.signature,
-    claim.claimant_address,
-  );
-
-  if (!isAuthorized) {
-    return jsonResponse(403, { error: "Claim authorization signature is invalid." });
-  }
 
   const protocol = new StarknetContract(context.protocolAbi, context.protocolAddress, context.relayerAccount);
   const invoke = await protocol.invoke("claim", {
@@ -145,7 +91,6 @@ async function relayStarknetClaim(body, context) {
     transaction_hash: invoke.transaction_hash,
     relayed_by: context.relayerAccount.address,
     stealth_address: claim.stealth_address,
-    claimant_address: claim.claimant_address,
   });
 }
 

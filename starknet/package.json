@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "deploy:testnet": "node --experimental-strip-types scripts/deploy.ts",
+    "deploy:full": "node --experimental-strip-types scripts/deploy_full.ts",
     "relayer": "node relayer/server.js"
   },
   "dependencies": {

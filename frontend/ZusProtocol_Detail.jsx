@@ -1,10 +1,6 @@
 import { useEffect, useState } from "react";
-import { appConfig, getExplorerBaseUrl, resolveApiUrl } from "./config.js";
-import {
-  isValidAddressForChain,
-  normalizeAddressForChain,
-  prepareRelayedClaimForChain,
-} from "./chains.js";
+import { resolveApiUrl } from "./config.js";
+import { isValidAddressForChain, normalizeAddressForChain } from "./chains.js";
 
 const CYAN = "#00ffc8";
 const CYAN_DIM = "#00ddb0";
@@ -338,21 +334,12 @@ function Scanline() {
 
 function ClaimCheckPanel({
   campaign,
-  wallet,
-  selectedChain,
   claimAddress,
   setClaimAddress,
   claimState,
-  relayState,
-  recoveryNote,
-  onDownloadRecoveryNote,
   onSubmit,
-  onRelayClaim,
+  onDownloadClaimPayload,
 }) {
-  const explorerUrl = relayState.txHash
-    ? `${getExplorerBaseUrl(selectedChain).replace(/\/$/, "")}/${relayState.txHash}`
-    : "";
-
   return (
     <div style={{ animation: "fadeUp .6s .8s both" }}>
       <div
@@ -370,7 +357,7 @@ function ClaimCheckPanel({
             ADDRESS_ELIGIBILITY_CHECK
           </div>
           <div style={{ fontFamily: MONO, fontSize: 10, color: MUTED, letterSpacing: 1, lineHeight: 1.8 }}>
-            ENTER AN ADDRESS TO CHECK WHETHER IT CAN CLAIM THIS CAMPAIGN THROUGH THE RUST API.
+            ENTER THE SECRET-DERIVED ELIGIBLE BASE ADDRESS TO CHECK WHETHER IT CAN CLAIM THIS CAMPAIGN THROUGH THE RUST API.
           </div>
         </div>
       </div>
@@ -407,7 +394,7 @@ function ClaimCheckPanel({
             transition: "all .25s",
           }}
         >
-          {claimState.loading ? "CHECKING" : "CLAIM"}
+          {claimState.loading ? "CHECKING" : "CHECK"}
         </button>
       </div>
 
@@ -465,78 +452,33 @@ function ClaimCheckPanel({
 
           <div style={{ marginTop: 16, borderTop: `1px solid ${BORDER}`, paddingTop: 16 }}>
             <div style={{ fontFamily: MONO, fontSize: 9, color: MUTED2, letterSpacing: 2, marginBottom: 8 }}>
-              PRIVATE_RELAY_SUBMISSION
+              ANONYMOUS_CLAIM_PATH
             </div>
             <div style={{ fontFamily: MONO, fontSize: 10, color: MUTED, lineHeight: 1.8, marginBottom: 14 }}>
-              SIGN OFF-CHAIN WITH THE ELIGIBLE WALLET, GENERATE THE CLAIM WITNESS LOCALLY, AND LET THE RELAYER SUBMIT THE ONCHAIN TRANSACTION FROM ITS OWN ACCOUNT.
+              GENERATE THE PRIVATE CLAIM BUNDLE LOCALLY IN THE TUI WITH THE SAME SECRET THAT DERIVES THIS ELIGIBLE BASE ADDRESS. THE BROWSER NO LONGER ASKS THE ELIGIBLE WALLET TO SIGN THE CLAIM.
             </div>
             <button
-              onClick={onRelayClaim}
-              disabled={relayState.loading}
+              onClick={onDownloadClaimPayload}
               style={{
                 fontFamily: MONO,
                 fontSize: 11,
                 letterSpacing: 3,
-                color: relayState.loading ? BG : CYAN,
+                color: CYAN,
                 border: `1px solid ${CYAN}`,
                 padding: "14px 26px",
-                cursor: relayState.loading ? "progress" : "pointer",
-                background: relayState.loading ? CYAN : "transparent",
+                cursor: "pointer",
+                background: "transparent",
                 boxShadow: "0 0 12px rgba(0,255,200,.15)",
                 transition: "all .25s",
               }}
             >
-              {relayState.loading ? "RELAYING" : wallet.account ? "RELAY CLAIM" : "CONNECT TO RELAY"}
+              DOWNLOAD CLAIM PAYLOAD
             </button>
-
-            {recoveryNote ? (
-              <button
-                onClick={onDownloadRecoveryNote}
-                disabled={relayState.loading}
-                style={{
-                  marginTop: 12,
-                  marginLeft: 12,
-                  fontFamily: MONO,
-                  fontSize: 10,
-                  letterSpacing: 2.4,
-                  color: relayState.loading ? MUTED : CYAN_DIM,
-                  border: `1px solid ${CYAN_DIM}`,
-                  padding: "12px 18px",
-                  cursor: relayState.loading ? "default" : "pointer",
-                  background: "transparent",
-                  boxShadow: "0 0 10px rgba(0,255,200,.08)",
-                  transition: "all .25s",
-                }}
-              >
-                DOWNLOAD RECOVERY NOTE
-              </button>
-            ) : null}
-
-            {recoveryNote ? (
-              <div style={{ marginTop: 12, fontFamily: MONO, fontSize: 9, color: MUTED, lineHeight: 1.8 }}>
-                SAVE THIS NOTE BEFORE YOU LEAVE. IT CONTAINS THE LOCAL VALUES THE TUI NEEDS TO
-                REBUILD THE STARKNET STEALTH SPEND MATERIAL.
-              </div>
-            ) : null}
-
-            {relayState.error ? (
-              <div style={{ marginTop: 12, fontFamily: MONO, fontSize: 10, color: "#d2a0a0", lineHeight: 1.8 }}>
-                {relayState.error}
-              </div>
-            ) : null}
-
-            {relayState.txHash ? (
-              <div style={{ marginTop: 12, fontFamily: MONO, fontSize: 10, color: CYAN, lineHeight: 1.8 }}>
-                RELAYER_TX:{" "}
-                {explorerUrl ? (
-                  <a href={explorerUrl} target="_blank" rel="noreferrer" style={{ color: CYAN }}>
-                    {relayState.txHash}
-                  </a>
-                ) : (
-                  relayState.txHash
-                )}
-              </div>
-            ) : null}
+            <div style={{ marginTop: 12, fontFamily: MONO, fontSize: 9, color: MUTED, lineHeight: 1.8 }}>
+              NEXT STEP: USE THE TUI&apos;S <code>PREPARE STARKNET CLAIM</code> ACTION WITH THIS CAMPAIGN,
+              YOUR LOCAL SECRET, AND THE SAME API BASE URL. THE TUI WILL DERIVE THE ELIGIBLE BASE
+              ADDRESS AGAIN, BUILD THE CLAIM BUNDLE, AND POST IT TO THE RELAYER.
+            </div>
           </div>
         </div>
       ) : null}
@@ -564,12 +506,6 @@ export default function App({
     error: "",
     payload: null,
   });
-  const [relayState, setRelayState] = useState({
-    loading: false,
-    error: "",
-    txHash: "",
-  });
-  const [recoveryNote, setRecoveryNote] = useState(null);
   const activeChain = campaignData?.execution_chain || selectedChain;
 
   useEffect(() => {
@@ -638,7 +574,7 @@ export default function App({
     if (!isValidAddressForChain(activeChain, claimAddress.trim())) {
       setClaimState({
         loading: false,
-        error: "Enter a valid wallet address to check this campaign.",
+        error: "Enter a valid eligible base address to check this campaign.",
         payload: null,
       });
       return;
@@ -666,114 +602,25 @@ export default function App({
         error: "",
         payload,
       });
-      setRelayState({
-        loading: false,
-        error: "",
-        txHash: "",
-      });
-      setRecoveryNote(null);
     } catch (error) {
       setClaimState({
         loading: false,
         error: parseErrorMessage(error),
         payload: null,
       });
-      setRecoveryNote(null);
     }
   };
 
-  const handleRelayClaim = async () => {
+  const handleDownloadClaimPayload = () => {
     if (!claimState.payload) {
       return;
     }
 
-    if (!wallet.account || !wallet.walletAccount) {
-      setRelayState({
-        loading: false,
-        error: "Connect the eligible wallet before relaying a claim.",
-        txHash: "",
-      });
-      return;
-    }
-
-    const connectedAddress = normalizeAddressForChain(activeChain, wallet.account);
-    if (connectedAddress !== normalizeAddressForChain(activeChain, claimState.payload.leaf_address)) {
-      setRelayState({
-        loading: false,
-        error: "Connect the same eligible wallet address that you checked against this campaign.",
-        txHash: "",
-      });
-      return;
-    }
-
-    setRelayState({
-      loading: true,
-      error: "",
-      txHash: "",
-    });
-
-    try {
-      const requestBody = await prepareRelayedClaimForChain(
-        activeChain,
-        appConfig,
-        wallet.walletAccount,
-        wallet,
-        claimState.payload,
-      );
-      const nextRecoveryNote =
-        activeChain === "starknet" && requestBody?.local_recovery
-          ? {
-              chain: "starknet",
-              campaign_id: requestBody.campaign_id,
-              eligible_wallet: requestBody.claim?.claimant_address || claimState.payload.leaf_address,
-              created_at: new Date().toISOString(),
-              recovery: requestBody.local_recovery,
-            }
-          : null;
-
-      setRecoveryNote(nextRecoveryNote);
-
-      const response = await readJson(
-        await fetch(`${appConfig.relayerUrl.replace(/\/$/, "")}/relay-claim`, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-          },
-          body: JSON.stringify(requestBody),
-        }),
-      );
-
-      if (nextRecoveryNote) {
-        setRecoveryNote({
-          ...nextRecoveryNote,
-          relayed_transaction_hash: response.transaction_hash || response.txHash || "",
-        });
-      }
-
-      setRelayState({
-        loading: false,
-        error: "",
-        txHash: response.transaction_hash || response.txHash || "",
-      });
-    } catch (error) {
-      setRelayState({
-        loading: false,
-        error: parseErrorMessage(error),
-        txHash: "",
-      });
-    }
-  };
-
-  const handleDownloadRecoveryNote = () => {
-    if (!recoveryNote) {
-      return;
-    }
-
-    const safeCampaignId = `${recoveryNote.campaign_id || campaignData?.campaign_id || "campaign"}`
+    const safeCampaignId = `${claimState.payload.onchain_campaign_id || campaignData?.campaign_id || "campaign"}`
       .replace(/[^a-zA-Z0-9_-]+/g, "-")
       .slice(0, 80);
 
-    downloadJsonFile(`zus-starknet-recovery-${safeCampaignId}.json`, recoveryNote);
+    downloadJsonFile(`zus-starknet-claim-payload-${safeCampaignId}.json`, claimState.payload);
   };
 
   const utilization = campaignData
@@ -1153,20 +1000,13 @@ export default function App({
 
                 <ClaimCheckPanel
                   campaign={campaignData}
-                  wallet={wallet}
-                  selectedChain={activeChain}
                   claimAddress={claimAddress}
                   setClaimAddress={setClaimAddress}
                   claimState={claimState}
-                  relayState={relayState}
-                  recoveryNote={recoveryNote}
-                  onDownloadRecoveryNote={handleDownloadRecoveryNote}
                   onSubmit={() => {
                     void handleCheckEligibility();
                   }}
-                  onRelayClaim={() => {
-                    void handleRelayClaim();
-                  }}
+                  onDownloadClaimPayload={handleDownloadClaimPayload}
                 />
               </>
             ) : null}

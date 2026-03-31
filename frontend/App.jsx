@@ -19,7 +19,7 @@ const LEGACY_VAULT_HASH = "#/vault";
 const PROTOCOLS_HASH = "#/protocols";
 const DOCS_URL = "https://deepwiki.com/nothinbutmind/ZUS_Protocol";
 const SUBTITLE =
-  "Zus unifies Filecoin and Starknet in one app. Campaign data and Merkle trees stay off-chain in the shared Rust plus Filecoin layer, the browser prepares the private claim flow, and transactions are relayed to Starknet Cairo contracts.";
+  "Zus unifies Filecoin and Starknet in one app. Campaign data and Merkle trees stay off-chain in the shared Rust plus Filecoin layer, the browser handles campaign management and eligibility checks, and private claim bundles are generated locally before relaying to Starknet Cairo contracts.";
 
 const EMPTY_WALLET = {
   account: "",
@@ -151,13 +151,13 @@ function TypewriterSub() {
 
   const highlight = (value) => {
     const parts = value.split(
-      /(Filecoin and Starknet|campaign data and Merkle trees stay off-chain|the browser prepares the private claim flow|transactions are relayed to Starknet Cairo contracts)/g,
+      /(Filecoin and Starknet|campaign data and Merkle trees stay off-chain|the browser handles campaign management and eligibility checks|relaying to Starknet Cairo contracts)/g,
     );
     return parts.map((part, index) =>
       part === "Filecoin and Starknet" ||
       part === "campaign data and Merkle trees stay off-chain" ||
-      part === "the browser prepares the private claim flow" ||
-      part === "transactions are relayed to Starknet Cairo contracts" ? (
+      part === "the browser handles campaign management and eligibility checks" ||
+      part === "relaying to Starknet Cairo contracts" ? (
         <span key={index} style={{ color: "#00ddb0" }}>
           {part}
         </span>
@@ -1110,7 +1110,7 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
           ENCRYPTED BY DESIGN.
         </h2>
         <p style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 13, color: "#3a6660", marginBottom: 40, lineHeight: 1.9 }}>
-          Keep the campaign and Merkle data off-chain, prepare the claim in the browser, and relay the final execution step to Starknet Cairo contracts.
+          Keep the campaign and Merkle data off-chain, prepare anonymous claim bundles locally, and relay the final execution step to Starknet Cairo contracts.
         </p>
         <div className="feature-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 22 }}>
           <FeatCard tag="// CONFIDENTIAL_AIRDROP" title="DROP TO THE RIGHT WALLETS. TELL NO ONE ELSE." desc="Distribute tokens to verified holders without exposing the recipient list or individual balances." extra="+ LIVE CAMPAIGNS >" delay={0} />
@@ -1126,9 +1126,9 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
         </h2>
         <div style={{ width: 36, height: 2, background: "#00ffc8", margin: "10px 0 40px", boxShadow: "0 0 8px #00ffc8" }} />
         <div style={{ display: "flex", flexDirection: "column", gap: 22, maxWidth: 1280 }}>
-          <HowStep dot="1" title="CONNECT STARKNET WALLET" desc="Connect Argent X or Braavos so the app can prepare a claimant-bound private payment flow." delay={0} />
+          <HowStep dot="1" title="CONNECT STARKNET WALLET" desc="Connect Argent X or Braavos to create and fund Starknet campaigns from the app." delay={0} />
           <HowStep dot="2" title="KEEP CAMPAIGN DATA OFFCHAIN" desc="The app posts campaign metadata and recipients into the shared Rust plus Filecoin layer, which builds and serves the Merkle tree." delay={150} />
-          <HowStep dot="3" title="RELAY TO STARKNET" desc="After the off-chain data is ready, the browser prepares the claim package and the relayer submits the final Cairo transaction." delay={300} />
+          <HowStep dot="3" title="RELAY TO STARKNET" desc="After the off-chain data is ready, the TUI generates the anonymous claim bundle locally and the relayer submits the final Cairo transaction." delay={300} />
         </div>
       </section>
 
@@ -1143,7 +1143,7 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
             <UseCard title="PRIVATE AIRDROPS" desc="Store allowlists and Merkle data off-chain, then send the on-chain payout path through Starknet." delay={0} />
             <UseCard title="LOYALTY CAMPAIGNS" desc="Run repeated reward drops while keeping the public dashboard free of full recipient disclosure." delay={100} />
             <UseCard title="GATED REBATES" desc="Use the same flow for consumer cashback or merchant promotions with a creator-controlled contract deployment." delay={200} />
-            <UseCard title="STEALTH CLAIM SYSTEMS" desc="Use Starknet when you want the browser-based Cairo relayer flow and local stealth recovery note download." delay={300} />
+            <UseCard title="STEALTH CLAIM SYSTEMS" desc="Use Starknet when you want TUI-generated anonymous claim bundles, relayed execution, and local stealth recovery material." delay={300} />
           </div>
         </div>
       </section>

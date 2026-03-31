@@ -33,7 +33,6 @@ pub fn verify_claim(claim: ClaimPublicInputs, proof: Span<felt252>) -> bool {
     let eligible_path = proof.slice(2, TREE_DEPTH);
     let outputs = circuit::main(
         wallet_secret,
-        claim.claimant_address,
         claim.message_domain,
         claim.eligible_root,
         claim.ephemeral_pubkey_x,

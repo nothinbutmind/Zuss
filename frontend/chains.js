@@ -7,7 +7,6 @@ import {
   isValidStarknetAddress,
   normalizeStarknetAddress,
   parseTokenAmount,
-  prepareRelayedClaim as prepareStarknetRelayedClaim,
 } from "./starknet.js";
 
 export const CHAIN_OPTIONS = [{ key: "starknet", label: "Starknet" }];
@@ -57,14 +56,5 @@ export async function executeCampaignDeploymentForChain(_chain, appConfig, walle
     metadataHash: await coerceTextOrNumericToFelt(
       `${deployment.apiCampaign.campaign_id}:${deployment.apiCampaign.name || deployment.apiCampaign.onchain_campaign_id || ""}`,
     ),
-  });
-}
-
-export async function prepareRelayedClaimForChain(_chain, appConfig, walletAccount, walletState, claimPayload) {
-  return prepareStarknetRelayedClaim({
-    walletAccount,
-    chainId: walletState.chainId || appConfig.starknet.chainId,
-    claimPayload,
-    campaignMessage: appConfig.campaignMessage,
   });
 }

@@ -9,10 +9,13 @@ const repoRoot = resolve(frontendDir, "..");
 
 const children = [];
 
-function launch(label, command, args, cwd) {
+function launch(label, command, args, cwd, extraEnv = {}) {
   const child = spawn(command, args, {
     cwd,
-    env: process.env,
+    env: {
+      ...process.env,
+      ...extraEnv,
+    },
     stdio: "inherit",
   });
 
@@ -43,6 +46,19 @@ function shutdown() {
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
 
-launch("userslist", "cargo", ["run"], resolve(repoRoot, "userslist"));
-launch("relayer", "npm", ["run", "relayer"], resolve(repoRoot, "starknet"));
-launch("frontend", "pnpm", ["exec", "vite"], frontendDir);
+const userslistPort = process.env.USERSLIST_PORT || "3000";
+const relayerPort = process.env.RELAYER_PORT || "4000";
+const frontendPort = process.env.FRONTEND_PORT || "5173";
+
+launch("userslist", "cargo", ["run"], resolve(repoRoot, "userslist"), {
+  PORT: userslistPort,
+});
+launch("relayer", "npm", ["run", "relayer"], resolve(repoRoot, "starknet"), {
+  PORT: relayerPort,
+});
+launch(
+  "frontend",
+  "pnpm",
+  ["exec", "vite", "--host", "0.0.0.0", "--port", frontendPort],
+  frontendDir,
+);

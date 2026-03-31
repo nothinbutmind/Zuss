@@ -1,1 +1,34 @@
-{}
+{
+  "network": "starknet-sepolia",
+  "rpcUrl": "https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_10/1D9bmFSjYvQF4-46urzMI",
+  "deployer": "0x07364dd4144faadc6b29d7a114c9aaf58d677b993614911665e2410dff677cf0",
+  "deployedAt": "2026-03-31T06:08:51.508Z",
+  "contracts": {
+    "zusProtocol": {
+      "address": "0x235cff8031029cc87f6612d905b0ed9556aad0ec1c7d04a8750fb51e5ee522",
+      "classHash": "0x724cb8277e1457cad135c1d4328d4351645dcb06c879a6f578218d275779b40",
+      "transactionHash": "0x408d0bec2654d3d5fbaf6517a7e714a32fb6be6c436b46a3af53e3bff5b2f17",
+      "artifact": "/Users/lisa/Documents/coding/ZUS_Protocol/starknet/target/dev/zus_protocol_starknet_ZusProtocol.contract_class.json",
+      "casmArtifact": "/Users/lisa/Documents/coding/ZUS_Protocol/starknet/target/dev/zus_protocol_starknet_ZusProtocol.compiled_contract_class.json"
+    },
+    "verifier": {
+      "address": "0x2c8eb79cd49bfa7e8d46c1b88d72b8015a2ad735dc6f85ed1255b6e81331bab",
+      "classHash": "0x381f335d7424f471e19682ca4651bea7bc9a559827396e42c383842302842e0",
+      "transactionHash": "0x6856460581156e6c8269d942b1d3b29ab4b4100e8bd4180d66ad0540db925ff",
+      "artifact": "/Users/lisa/Documents/coding/ZUS_Protocol/starknet/target/dev/zus_protocol_starknet_ClaimVerifier.contract_class.json",
+      "casmArtifact": "/Users/lisa/Documents/coding/ZUS_Protocol/starknet/target/dev/zus_protocol_starknet_ClaimVerifier.compiled_contract_class.json"
+    },
+    "payoutToken": {
+      "address": "0x4ef51dc5a6c81610a5da8adb35119ab450593faceac9dfed14f1bac863a1bcb",
+      "classHash": "0x207763c781193e0e6ff59714ef2d9f58699a2edd07228013fe63adcd985c14a",
+      "transactionHash": "0x106f6a4f9a89db9ee1ace0af6bd94e18aa5235336acd655a4a39f97e191d01",
+      "artifact": "/Users/lisa/Documents/coding/ZUS_Protocol/starknet/target/dev/zus_protocol_starknet_MockErc20.contract_class.json",
+      "casmArtifact": "/Users/lisa/Documents/coding/ZUS_Protocol/starknet/target/dev/zus_protocol_starknet_MockErc20.compiled_contract_class.json"
+    }
+  },
+  "tokenMint": {
+    "recipient": "0x07364dd4144faadc6b29d7a114c9aaf58d677b993614911665e2410dff677cf0",
+    "amount": "1000000000000000000000000",
+    "transactionHash": "0x23ff766f981356deaf60c73cb26a4ca1b54c07d491fb35731f6ea5e3f3011e1"
+  }
+}

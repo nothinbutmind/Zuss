@@ -43,7 +43,7 @@ mod tests {
 
     const TREE_DEPTH: usize = 12;
     const OWNER: ContractAddress = 0x111.try_into().unwrap();
-    const CLAIMANT: ContractAddress = 0x222.try_into().unwrap();
+    const RELAYER: ContractAddress = 0x222.try_into().unwrap();
     const MESSAGE: felt252 = 'ZUS_CLAIM';
     const CAMPAIGN_ID: felt252 = 0xCAFE;
     const PAYOUT: u256 = 100;
@@ -72,7 +72,7 @@ mod tests {
             pubkey_x,
             pubkey_y,
             WALLET_SECRET,
-            CLAIMANT,
+            base_address,
             MESSAGE,
             fixture.root,
             fixture.ephemeral_pubkey_x,
@@ -95,7 +95,8 @@ mod tests {
     #[test]
     fn merkle_proof_verification_passes_for_valid_leaf() {
         let fixture = build_claim_fixture();
-        let leaf: felt252 = CLAIMANT.into();
+        let (pubkey_x, pubkey_y) = wallet_public_key(WALLET_SECRET);
+        let leaf: felt252 = base_public_key_to_address(pubkey_x, pubkey_y).into();
 
         assert(verify_membership(leaf, fixture.root, fixture.proof.span(), fixture.eligible_index), 'invalid proof');
     }
@@ -146,11 +147,10 @@ mod tests {
         protocol.fund_campaign(CAMPAIGN_ID, FUNDING);
         stop_cheat_caller_address(protocol.contract_address);
 
-        start_cheat_caller_address(protocol.contract_address, CLAIMANT);
+        start_cheat_caller_address(protocol.contract_address, RELAYER);
         protocol.claim(
             CAMPAIGN_ID,
             zus_protocol_starknet::types::ClaimPublicInputs {
-                claimant_address: CLAIMANT,
                 message_domain: MESSAGE,
                 eligible_root: fixture.root,
                 ephemeral_pubkey_x: fixture.ephemeral_pubkey_x,
@@ -180,11 +180,10 @@ mod tests {
         protocol.fund_campaign(CAMPAIGN_ID, FUNDING);
         stop_cheat_caller_address(protocol.contract_address);
 
-        start_cheat_caller_address(protocol.contract_address, CLAIMANT);
+        start_cheat_caller_address(protocol.contract_address, RELAYER);
         protocol.claim(
             CAMPAIGN_ID,
             zus_protocol_starknet::types::ClaimPublicInputs {
-                claimant_address: CLAIMANT,
                 message_domain: MESSAGE,
                 eligible_root: fixture.root,
                 ephemeral_pubkey_x: fixture.ephemeral_pubkey_x,
@@ -197,7 +196,6 @@ mod tests {
         protocol.claim(
             CAMPAIGN_ID,
             zus_protocol_starknet::types::ClaimPublicInputs {
-                claimant_address: CLAIMANT,
                 message_domain: MESSAGE,
                 eligible_root: fixture.root,
                 ephemeral_pubkey_x: fixture.ephemeral_pubkey_x,
@@ -240,13 +238,14 @@ mod tests {
 
     fn build_claim_fixture() -> ClaimFixture {
         let eligible_index = 5;
-        let leaf: felt252 = CLAIMANT.into();
+        let (base_pubkey_x, base_pubkey_y) = wallet_public_key(WALLET_SECRET);
+        let eligible_address = base_public_key_to_address(base_pubkey_x, base_pubkey_y);
+        let leaf: felt252 = eligible_address.into();
         let proof = sample_merkle_path();
         let root = compute_root(leaf, eligible_index, proof.span());
         let (ephemeral_pubkey_x, ephemeral_pubkey_y) = wallet_public_key(EPHEMERAL_SECRET);
         let outputs = circuit::main(
             WALLET_SECRET,
-            CLAIMANT,
             MESSAGE,
             root,
             ephemeral_pubkey_x,

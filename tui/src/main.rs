@@ -133,10 +133,8 @@ impl App {
 
                 if let Some(address) = auto_filled_address {
                     self.set_form_field_value(ActionKind::CampaignExplorer, "wallet_address", address.clone());
-                    self.set_form_field_value(ActionKind::GenerateZkWitness, "claimant_address", address);
-                    self.status =
-                        "Completed and copied the Starknet address into the explorer and claim prep tools"
-                            .to_string();
+                    self.status = "Completed and copied the Starknet address into the explorer tool"
+                        .to_string();
                 }
 
                 if action_kind == ActionKind::CreateWallet
@@ -672,7 +670,7 @@ fn fallback_command_preview(form: &ActionForm) -> String {
             format!(
                 "GET {api_base}/campaigns/{}/claim/{} + local Starknet claim bundle",
                 form.value("campaign_selector"),
-                form.value("claimant_address")
+                "<secret-derived-eligible-address>"
             )
         }
         ActionKind::RecoverStarknetStealth => "local stealth key recovery".to_string(),
@@ -701,8 +699,8 @@ fn focus_fields_for_error(app: &mut App, message: &str) {
         Some("tx_hash")
     } else if lowered.contains("leaf address") {
         Some("leaf_address")
-    } else if lowered.contains("claimant address") {
-        Some("claimant_address")
+    } else if lowered.contains("eligible address") {
+        Some("wallet_secret")
     } else if lowered.contains("wallet address") {
         Some("wallet_address")
     } else if lowered.contains("wallet secret") {
@@ -862,12 +860,6 @@ fn run_prepare_starknet_claim(form: &ActionForm) -> AppResult<CommandResult> {
         "campaign_selector",
         "Campaign name or UUID is required.",
     )?;
-    let claimant_address_hex = normalize_starknet_address(&required_value(
-        form,
-        "claimant_address",
-        "Claimant address is required.",
-    )?)?;
-    let claimant_address = parse_stark_felt(&claimant_address_hex, "Claimant address")?;
     let wallet_secret = parse_stark_felt(
         &required_value(form, "wallet_secret", "Wallet secret is required.")?,
         "Wallet secret",
@@ -901,15 +893,17 @@ fn run_prepare_starknet_claim(form: &ActionForm) -> AppResult<CommandResult> {
     let resolved_campaign = resolve_campaign_claim_for_wallet(
         &api_base,
         &campaign_selector,
-        &claimant_address_hex,
+        &derive_base_starknet_address_hex(&wallet_secret),
     )?;
     let campaign = resolved_campaign.campaign;
     let claim = resolved_campaign.claim;
+    let eligible_address_hex = derive_base_starknet_address_hex(&wallet_secret);
+    let eligible_address = parse_stark_felt(&eligible_address_hex, "Eligible address")?;
     let normalized_leaf_address = normalize_starknet_address(&claim.leaf_address)?;
-    if normalized_leaf_address != claimant_address_hex {
+    if normalized_leaf_address != eligible_address_hex {
         return Err(AppError::message(format!(
             "The resolved claim is for {}, not {}.",
-            normalized_leaf_address, claimant_address_hex
+            normalized_leaf_address, eligible_address_hex
         )));
     }
 
@@ -935,7 +929,7 @@ fn run_prepare_starknet_claim(form: &ActionForm) -> AppResult<CommandResult> {
     }
 
     if !verify_starknet_merkle_membership(
-        &claimant_address,
+        &eligible_address,
         &eligible_root,
         &eligible_path,
         eligible_index,
@@ -956,7 +950,7 @@ fn run_prepare_starknet_claim(form: &ActionForm) -> AppResult<CommandResult> {
     let ephemeral_pubkey_y = ephemeral_pubkey.y().clone();
     let stealth_tweak = derive_private_stealth_tweak_field(
         &wallet_secret,
-        &claimant_address,
+        &eligible_address,
         &message_domain,
         &eligible_root,
         &ephemeral_pubkey_x,
@@ -995,7 +989,7 @@ fn run_prepare_starknet_claim(form: &ActionForm) -> AppResult<CommandResult> {
     let _ = writeln!(output, "Resolved campaign: {}", campaign.name);
     let _ = writeln!(output, "Campaign ID: {}", claim.campaign_id);
     let _ = writeln!(output, "Onchain campaign ID: {onchain_campaign_id}");
-    let _ = writeln!(output, "Claimant address: {claimant_address_hex}");
+    let _ = writeln!(output, "Eligible address: {eligible_address_hex}");
     let _ = writeln!(output, "Base address: {base_address}");
     let _ = writeln!(output, "Eligible root: {}", stark_field_to_hex(&eligible_root));
     let _ = writeln!(output, "Eligible index: {eligible_index}");
@@ -1007,7 +1001,6 @@ fn run_prepare_starknet_claim(form: &ActionForm) -> AppResult<CommandResult> {
     let _ = writeln!(output, "{{");
     let _ = writeln!(output, "  \"campaign_id\": \"{onchain_campaign_id}\",");
     let _ = writeln!(output, "  \"claim\": {{");
-    let _ = writeln!(output, "    \"claimant_address\": \"{claimant_address_hex}\",");
     let _ = writeln!(
         output,
         "    \"message_domain\": \"{}\",",
@@ -1045,7 +1038,7 @@ fn run_prepare_starknet_claim(form: &ActionForm) -> AppResult<CommandResult> {
     let _ = writeln!(output);
     let _ = writeln!(output, "Local recovery note:");
     let _ = writeln!(output, "  wallet_secret: {}", stark_field_to_hex(&wallet_secret));
-    let _ = writeln!(output, "  claimant_address: {claimant_address_hex}");
+    let _ = writeln!(output, "  eligible_address: {eligible_address_hex}");
     let _ = writeln!(
         output,
         "  message_domain: {}",
@@ -1080,13 +1073,13 @@ fn run_prepare_starknet_claim(form: &ActionForm) -> AppResult<CommandResult> {
     let _ = writeln!(output);
     let _ = writeln!(
         output,
-        "Next step: sign the claim authorization in the frontend or wallet flow, then add authorization.signature before sending this body to the relayer."
+        "Next step: POST this body directly to the Starknet relayer. No claimant wallet signature is required for relay submission."
     );
 
     Ok(CommandResult {
         command_preview: format!(
             "GET {api_base}/campaigns/{}/claim/{} + local Starknet claim bundle",
-            claim.campaign_id, claimant_address_hex
+            claim.campaign_id, eligible_address_hex
         ),
         output,
         success: true,
@@ -1139,12 +1132,6 @@ fn run_recover_starknet_stealth(form: &ActionForm) -> AppResult<CommandResult> {
         ));
     }
 
-    let claimant_address_hex = normalize_starknet_address(&required_value(
-        form,
-        "claimant_address",
-        "Claimant address is required.",
-    )?)?;
-    let claimant_address = parse_stark_felt(&claimant_address_hex, "Claimant address")?;
     let message_domain = parse_message_domain(&required_value(
         form,
         "message_domain",
@@ -1175,9 +1162,11 @@ fn run_recover_starknet_stealth(form: &ActionForm) -> AppResult<CommandResult> {
     let base_pubkey = generator
         .operate_with_self(wallet_secret.representative())
         .to_affine();
+    let eligible_address_hex = derive_base_starknet_address_hex(&wallet_secret);
+    let eligible_address = parse_stark_felt(&eligible_address_hex, "Eligible address")?;
     let stealth_tweak = derive_private_stealth_tweak_field(
         &wallet_secret,
-        &claimant_address,
+        &eligible_address,
         &message_domain,
         &eligible_root,
         &ephemeral_pubkey_x,
@@ -1206,7 +1195,7 @@ fn run_recover_starknet_stealth(form: &ActionForm) -> AppResult<CommandResult> {
     let mut output = String::new();
     let _ = writeln!(output, "Recovered Starknet stealth material locally.");
     let _ = writeln!(output);
-    let _ = writeln!(output, "Claimant address: {claimant_address_hex}");
+    let _ = writeln!(output, "Eligible address: {eligible_address_hex}");
     let _ = writeln!(output, "Base pubkey X: {}", stark_field_to_hex(base_pubkey.x()));
     let _ = writeln!(output, "Base pubkey Y: {}", stark_field_to_hex(base_pubkey.y()));
     let _ = writeln!(output, "Base address: {base_address}");
@@ -1226,7 +1215,7 @@ fn run_recover_starknet_stealth(form: &ActionForm) -> AppResult<CommandResult> {
     );
     let _ = writeln!(
         output,
-        "This action mirrors the Cairo derivation: tweak = Poseidon(wallet_secret, claimant_address, message_domain, eligible_root, ephemeral_pubkey_x, ephemeral_pubkey_y)."
+        "This action mirrors the Cairo derivation: tweak = Poseidon(wallet_secret, eligible_address, message_domain, eligible_root, ephemeral_pubkey_x, ephemeral_pubkey_y)."
     );
 
     Ok(CommandResult {
@@ -1948,7 +1937,7 @@ fn stark_short_string_field(value: &str) -> StarkField {
 
 fn derive_private_stealth_tweak_field(
     wallet_secret: &StarkField,
-    claimant_address: &StarkField,
+    eligible_address: &StarkField,
     message_domain: &StarkField,
     eligible_root: &StarkField,
     ephemeral_pubkey_x: &StarkField,
@@ -1959,7 +1948,7 @@ fn derive_private_stealth_tweak_field(
     let mut candidate = PoseidonCairoStark252::hash_many(&[
         tweak_domain,
         wallet_secret.clone(),
-        claimant_address.clone(),
+        eligible_address.clone(),
         message_domain.clone(),
         eligible_root.clone(),
         ephemeral_pubkey_x.clone(),
@@ -1998,6 +1987,13 @@ fn point_to_contract_address_hex(x: &StarkField, y: &StarkField) -> String {
             candidate.clone(),
         ]);
     }
+}
+
+fn derive_base_starknet_address_hex(wallet_secret: &StarkField) -> String {
+    let base_pubkey = StarkCurve::generator()
+        .operate_with_self(wallet_secret.representative())
+        .to_affine();
+    point_to_contract_address_hex(base_pubkey.x(), base_pubkey.y())
 }
 
 fn derive_nullifier_field(wallet_secret: &StarkField, message_domain: &StarkField) -> StarkField {

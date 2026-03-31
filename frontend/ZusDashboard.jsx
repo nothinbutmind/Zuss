@@ -506,7 +506,7 @@ export default function ZusDashboard({
             <br />
             DASHBOARD · WALLET {shortAddress(wallet.account)}
           </div>
-          <div style={{ color: MUTED, letterSpacing: 1.5 }}>RUST_API · FLOW_EVM · PRIVATE_REWARDS</div>
+          <div style={{ color: MUTED, letterSpacing: 1.5 }}>RUST_API · FILECOIN · STARKNET</div>
         </footer>
       </div>
     </>

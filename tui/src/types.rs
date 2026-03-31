@@ -232,7 +232,7 @@ impl App {
                     kind: ActionKind::GenerateZkWitness,
                     label: "Prepare Starknet Claim",
                     command_label: "API claim + local relayer bundle",
-                    description: "Fetch the Starknet claim payload from the Filecoin-backed proof API, verify the Merkle path locally, derive the nullifier and stealth destination, and print the relayer-ready claim bundle plus a local recovery note.",
+                    description: "Derive the private base address from a local secret, fetch the matching Starknet claim payload from the Filecoin-backed proof API, then print the relayer-ready anonymous claim bundle plus a local recovery note.",
                     fields: vec![
                         FormField {
                             key: "api_base_url",
@@ -251,17 +251,9 @@ impl App {
                             required: true,
                         },
                         FormField {
-                            key: "claimant_address",
-                            label: "Claimant Address",
-                            hint: "0x... Starknet account address",
-                            value: String::new(),
-                            sensitive: false,
-                            required: true,
-                        },
-                        FormField {
                             key: "wallet_secret",
                             label: "Wallet Secret",
-                            hint: "felt252 local witness secret",
+                            hint: "felt252 secret that defines the eligible base address",
                             value: String::new(),
                             sensitive: true,
                             required: true,
@@ -296,14 +288,6 @@ impl App {
                             hint: "felt252 from local recovery note",
                             value: String::new(),
                             sensitive: true,
-                            required: true,
-                        },
-                        FormField {
-                            key: "claimant_address",
-                            label: "Claimant Address",
-                            hint: "0x... Starknet account address",
-                            value: String::new(),
-                            sensitive: false,
                             required: true,
                         },
                         FormField {
@@ -488,7 +472,9 @@ pub fn default_api_base_url() -> String {
 }
 
 pub fn default_rpc_url() -> String {
-    env::var("ZUS_RPC_URL").unwrap_or_else(|_| "https://testnet.evm.nodes.onflow.org".to_string())
+    env::var("STARKNET_RPC_URL")
+        .or_else(|_| env::var("ZUS_RPC_URL"))
+        .unwrap_or_else(|_| "https://starknet-sepolia.public.blastapi.io/rpc/v0_8".to_string())
 }
 
 pub fn default_protocol_address() -> String {
