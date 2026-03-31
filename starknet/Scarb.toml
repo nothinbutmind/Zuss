@@ -18,3 +18,4 @@ enable-gas = true
 
 [[target.starknet-contract]]
 sierra = true
+casm = true

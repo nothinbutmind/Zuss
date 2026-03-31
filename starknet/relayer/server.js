@@ -270,11 +270,11 @@ async function main() {
   const starknetRelayerPrivateKey = requireEnv("RELAYER_PRIVATE_KEY");
   const starknetProtocolAbi = loadStarknetProtocolAbi();
   const starknetChainId = process.env.STARKNET_CHAIN_ID?.trim() || "SN_SEPOLIA";
-  const starknetRelayerAccount = new Account(
-    starknetProvider,
-    starknetRelayerAddress,
-    starknetRelayerPrivateKey,
-  );
+  const starknetRelayerAccount = new Account({
+    provider: starknetProvider,
+    address: starknetRelayerAddress,
+    signer: starknetRelayerPrivateKey,
+  });
 
   const flowProvider = new JsonRpcProvider(
     process.env.FLOW_EVM_RPC_URL?.trim() || DEFAULT_FLOW_RPC_URL,

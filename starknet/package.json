@@ -9,6 +9,6 @@
   },
   "dependencies": {
     "ethers": "^6.16.0",
-    "starknet": "7.6.4"
+    "starknet": "9.2.1"
   }
 }

@@ -99,6 +99,11 @@ function ensureArtifact(path: string): void {
 
 function compileCasmArtifact(sierraPath: string): string {
   const casmPath = sierraPath.replace(/\.contract_class\.json$/, ".compiled_contract_class.json");
+
+  if (existsSync(casmPath)) {
+    return casmPath;
+  }
+
   const attempts: Array<[string, string[]]> = [
     ["starkli", ["sierra-compile", sierraPath, casmPath]],
     ["starknet-sierra-compile", [sierraPath, casmPath]],
@@ -231,7 +236,11 @@ async function main(): Promise<void> {
   ensureArtifact(VERIFIER_ARTIFACT);
 
   const provider = new RpcProvider({ nodeUrl: rpcUrl });
-  const account = new Account(provider, accountAddress, privateKey);
+  const account = new Account({
+    provider,
+    address: accountAddress,
+    signer: privateKey,
+  });
   const normalizedDeployer = addAddressPadding(accountAddress);
 
   console.log("Declaring and deploying ZusProtocol...");

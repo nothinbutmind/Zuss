@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { appConfig, resolveApiUrl } from "./config.js";
+import { appConfig, getNetworkName, resolveApiUrl } from "./config.js";
 import {
   CHAIN_OPTIONS,
   buildWalletAccountForChain,
@@ -18,8 +18,9 @@ const CAMPAIGNS_HASH = "#/campaigns";
 const REWARDS_HASH = "#/rewards";
 const LEGACY_VAULT_HASH = "#/vault";
 const PROTOCOLS_HASH = "#/protocols";
+const DOCS_URL = "https://deepwiki.com/nothinbutmind/ZUS_Protocol";
 const SUBTITLE =
-  "Zus unifies Flow EVM, Filecoin, and Starknet into one private rewards app where campaign data stays shared, eligibility is verified, and claims stay confidential.";
+  "Zus unifies Filecoin, Flow EVM, and Starknet in one app. Campaign data and Merkle trees stay off-chain in the shared Rust plus Filecoin layer, the browser prepares the user flow, and transactions are routed to the selected on-chain contracts.";
 
 const EMPTY_WALLET = {
   account: "",
@@ -150,9 +151,14 @@ function TypewriterSub() {
   }, []);
 
   const highlight = (value) => {
-    const parts = value.split(/(Flow EVM, Filecoin, and Starknet|claims stay confidential)/g);
+    const parts = value.split(
+      /(Filecoin, Flow EVM, and Starknet|campaign data and Merkle trees stay off-chain|the browser prepares the user flow|transactions are routed to the selected on-chain contracts)/g,
+    );
     return parts.map((part, index) =>
-      part === "Flow EVM, Filecoin, and Starknet" || part === "claims stay confidential" ? (
+      part === "Filecoin, Flow EVM, and Starknet" ||
+      part === "campaign data and Merkle trees stay off-chain" ||
+      part === "the browser prepares the user flow" ||
+      part === "transactions are routed to the selected on-chain contracts" ? (
         <span key={index} style={{ color: "#00ddb0" }}>
           {part}
         </span>
@@ -803,6 +809,28 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
               {item}
             </a>
           ))}
+          <a
+            className="nav-link"
+            href={DOCS_URL}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              fontFamily: "'Share Tech Mono',monospace",
+              fontSize: 12,
+              color: "#3a6660",
+              letterSpacing: 2,
+              textDecoration: "none",
+              transition: "color .2s",
+            }}
+            onMouseEnter={(event) => {
+              event.target.style.color = "#00ffc8";
+            }}
+            onMouseLeave={(event) => {
+              event.target.style.color = "#3a6660";
+            }}
+          >
+            DOCS
+          </a>
           <Btn className="nav-cta" outline onClick={() => void onConnect()}>
             {wallet.account ? shortAddress(wallet.account) : "CONNECT WALLET"}
           </Btn>
@@ -822,11 +850,14 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
             {[
               { label: "PRINCIPLES", href: "#principles" },
               { label: "FEATURES", href: "#how-zus-works" },
+              { label: "DOCS", href: DOCS_URL, external: true },
             ].map((item) => (
               <a
                 key={item.label}
                 href={item.href}
                 onClick={() => setMobileMenuOpen(false)}
+                target={item.external ? "_blank" : undefined}
+                rel={item.external ? "noreferrer" : undefined}
                 style={{
                   fontFamily: "'Share Tech Mono',monospace",
                   fontSize: 12,
@@ -954,6 +985,111 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
             <Btn className="hero-btn" onClick={onNavigateStart}>
               GET STARTED
             </Btn>
+            <Btn className="hero-btn" outline onClick={() => window.open(DOCS_URL, "_blank", "noopener,noreferrer")}>
+              OPEN DOCS
+            </Btn>
+          </div>
+
+          <div
+            style={{
+              marginTop: 28,
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
+              gap: 14,
+              maxWidth: 980,
+              marginInline: "auto",
+              animation: "fadeUp .9s 1s both",
+            }}
+          >
+            {[
+              {
+                tag: "DOCS_LINK",
+                title: "PROJECT DOCS",
+                desc:
+                  "Open the DeepWiki documentation for the full architecture, contracts, relayer flow, and Starknet rebuild details.",
+                action: "OPEN DEEPWIKI",
+              },
+              {
+                tag: "OFFCHAIN_LAYER",
+                title: "FILECOIN + RUST API",
+                desc:
+                  "Campaign metadata, recipient sets, and Merkle trees stay off-chain here as the shared source of truth for every chain.",
+              },
+              {
+                tag: "FLOW_EVM_PATH",
+                title: "FLOW EVM CONTRACTS",
+                desc:
+                  "Pick Flow EVM in the chain selector when you want the app to route to the Flow EVM verifier and ZusProtocol contracts.",
+              },
+              {
+                tag: "STARKNET_PATH",
+                title: "STARKNET CAIRO CONTRACTS",
+                desc:
+                  "Pick Starknet in the chain selector when you want the app to route to the Cairo contracts, relayed claims, and stealth recovery flow.",
+              },
+            ].map((item) => (
+              <div
+                key={item.tag}
+                style={{
+                  textAlign: "left",
+                  border: "1px solid rgba(0,255,200,.12)",
+                  background: "rgba(0,255,200,.03)",
+                  padding: "18px 18px 20px",
+                  boxShadow: "0 0 18px rgba(0,255,200,.04)",
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: "'Share Tech Mono',monospace",
+                    fontSize: 10,
+                    color: "#2a5550",
+                    letterSpacing: 2,
+                    marginBottom: 10,
+                  }}
+                >
+                  {item.tag}
+                </div>
+                <div
+                  style={{
+                    fontFamily: "'Share Tech Mono',monospace",
+                    fontSize: 15,
+                    color: "#00ffc8",
+                    letterSpacing: 1.4,
+                    marginBottom: 10,
+                  }}
+                >
+                  {item.title}
+                </div>
+                <div
+                  style={{
+                    fontFamily: "'Share Tech Mono',monospace",
+                    fontSize: 12,
+                    color: "#3a6660",
+                    lineHeight: 1.8,
+                  }}
+                >
+                  {item.desc}
+                </div>
+                {item.action ? (
+                  <a
+                    href={DOCS_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      display: "inline-block",
+                      marginTop: 14,
+                      fontFamily: "'Share Tech Mono',monospace",
+                      fontSize: 11,
+                      letterSpacing: 1.8,
+                      color: "#00ddb0",
+                      textDecoration: "none",
+                    }}
+                  >
+                    {item.action}
+                  </a>
+                ) : null}
+              </div>
+            ))}
           </div>
 
         </div>
@@ -967,12 +1103,12 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
           ENCRYPTED BY DESIGN.
         </h2>
         <p style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 13, color: "#3a6660", marginBottom: 40, lineHeight: 1.9 }}>
-          Powered by ZK proofs, a Rust campaign API, and private transactions that keep the recipient graph off the public surface area.
+          Pick a chain visibly from the top-right selector, keep the campaign and Merkle data off-chain, and route the final execution step to Flow EVM contracts or Starknet Cairo contracts.
         </p>
         <div className="feature-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 22 }}>
           <FeatCard tag="// CONFIDENTIAL_AIRDROP" title="DROP TO THE RIGHT WALLETS. TELL NO ONE ELSE." desc="Distribute tokens to verified holders without exposing the recipient list or individual balances." extra="+ LIVE CAMPAIGNS >" delay={0} />
-          <FeatCard tag="// RUST_API_SYNC" title="GET STARTED NOW OPENS THE DASHBOARD." desc="The landing page routes into the operator dashboard first, while the other pages stay available through the same app shell and original design language." delay={120} />
-          <FeatCard tag="// SMART_CONTRACT_HANDOFF" title="CREATE OFFCHAIN FIRST, DEPLOY ONCHAIN SECOND." desc="The app creates the Merkle campaign in Rust first, then asks the connected wallet to call the ZusProtocol contract with the returned root and onchain id." extra="RPC + CONTRACT VIA ENV" delay={240} />
+          <FeatCard tag="// CHAIN_SELECTOR" title="ONE APP. TWO EXECUTION CHAINS." desc="The chain selector makes it explicit whether the app is about to route to the Flow EVM verifier plus ZusProtocol contracts or the Starknet Cairo contracts." delay={120} />
+          <FeatCard tag="// SMART_CONTRACT_HANDOFF" title="KEEP DATA OFFCHAIN. EXECUTE ONCHAIN." desc="The app creates the campaign and Merkle tree in the shared Rust plus Filecoin layer first, then routes the execution step to Flow EVM or Starknet contracts." extra="FILECOIN + APP + CHAIN" delay={240} />
         </div>
       </section>
 
@@ -983,9 +1119,9 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
         </h2>
         <div style={{ width: 36, height: 2, background: "#00ffc8", margin: "10px 0 40px", boxShadow: "0 0 8px #00ffc8" }} />
         <div style={{ display: "flex", flexDirection: "column", gap: 22, maxWidth: 1280 }}>
-          <HowStep dot="1" title="CONNECT WALLET" desc="The operator wallet stays in the existing interface, but now it actually connects and becomes the campaign creator address sent to the Rust API." delay={0} />
-          <HowStep dot="2" title="CREATE CAMPAIGN" desc="The dashboard posts name plus recipients to /campaigns, gets back merkle_root and onchain_campaign_id, then forwards those values into the contract call." delay={150} />
-          <HowStep dot="3" title="VERIFY THE RESULT" desc="Every campaign in the operator stream is rendered from the Rust API feed so the UI mirrors the backend catalog instead of static placeholders." delay={300} />
+          <HowStep dot="1" title="CHOOSE FLOW OR STARKNET" desc="Use the chain selector first so the app knows which wallet, contract set, relayer path, and explorer link to use." delay={0} />
+          <HowStep dot="2" title="KEEP CAMPAIGN DATA OFFCHAIN" desc="The app posts campaign metadata and recipients into the shared Rust plus Filecoin layer, which builds and serves the Merkle tree for both chains." delay={150} />
+          <HowStep dot="3" title="ROUTE TO THE RIGHT CONTRACTS" desc="After the off-chain data is ready, the app routes to either the Flow EVM verifier plus ZusProtocol contracts or the Starknet Cairo claim path." delay={300} />
         </div>
       </section>
 
@@ -997,10 +1133,10 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
             OPERATIONAL USE CASES
           </h2>
           <div className="use-cases-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 22, maxWidth: 1400, margin: "0 auto" }}>
-            <UseCard title="PRIVATE AIRDROPS" desc="Store allowlists offchain in Rust and only push the campaign root plus payout logic onchain." delay={0} />
+            <UseCard title="PRIVATE AIRDROPS" desc="Store allowlists and Merkle data off-chain, then choose Flow EVM or Starknet for the on-chain payout path." delay={0} />
             <UseCard title="LOYALTY CAMPAIGNS" desc="Run repeated reward drops while keeping the public dashboard free of full recipient disclosure." delay={100} />
             <UseCard title="GATED REBATES" desc="Use the same flow for consumer cashback or merchant promotions with a creator-controlled contract deployment." delay={200} />
-            <UseCard title="STEALTH CLAIM SYSTEMS" desc="Keep the original stealth-address and proof path design while giving operators a real browser-based control panel." delay={300} />
+            <UseCard title="STEALTH CLAIM SYSTEMS" desc="Use Starknet when you want the browser-based Cairo relayer flow and local stealth recovery note download." delay={300} />
           </div>
         </div>
       </section>
@@ -1049,7 +1185,17 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
         <div className="footer-copy" style={{ textAlign: "center", lineHeight: 1.8 }}>
           <div>© 2026 ZUS PROTOCOL. ALL RIGHTS RESERVED.</div>
         </div>
-        <span className="footer-links">X_FEED · DISCORD_SERVER · GITHUB_REPO · PRIVACY_POLICY</span>
+        <span className="footer-links">
+          X_FEED · DISCORD_SERVER · GITHUB_REPO · PRIVACY_POLICY ·{" "}
+          <a
+            href={DOCS_URL}
+            target="_blank"
+            rel="noreferrer"
+            style={{ color: "#00ddb0", textDecoration: "none" }}
+          >
+            DOCS
+          </a>
+        </span>
       </footer>
     </>
   );
@@ -1287,41 +1433,119 @@ export default function App() {
     const campaignChain = normalizeChainKey(campaign.execution_chain || selectedChain);
     return campaignChain === selectedChain;
   });
+  const selectedChainLabel =
+    CHAIN_OPTIONS.find((option) => option.key === selectedChain)?.label || selectedChain;
+  const selectedWalletHint =
+    selectedChain === "starknet"
+      ? "Argent X / Braavos"
+      : "Flow EVM wallet";
   const chainSelector = (
     <div
       style={{
         position: "fixed",
-        top: 18,
+        top: 16,
         right: 18,
         zIndex: 160,
         display: "flex",
-        gap: 8,
-        padding: 8,
-        border: "1px solid rgba(0,255,200,.14)",
-        background: "rgba(2,13,15,.92)",
+        flexDirection: "column",
+        gap: 10,
+        padding: 12,
+        minWidth: 220,
+        border: "1px solid rgba(0,255,200,.18)",
+        background: "rgba(2,13,15,.96)",
+        boxShadow: "0 0 22px rgba(0,255,200,.08)",
       }}
     >
-      {CHAIN_OPTIONS.map((option) => {
-        const active = option.key === selectedChain;
-        return (
-          <button
-            key={option.key}
-            onClick={() => setSelectedChain(option.key)}
-            style={{
-              fontFamily: "'Share Tech Mono',monospace",
-              fontSize: 10,
-              letterSpacing: 1.6,
-              padding: "8px 12px",
-              border: `1px solid ${active ? "#00ffc8" : "rgba(0,255,200,.12)"}`,
-              background: active ? "rgba(0,255,200,.14)" : "transparent",
-              color: active ? "#00ffc8" : "#4a7a72",
-              cursor: "pointer",
-            }}
-          >
-            {option.label}
-          </button>
-        );
-      })}
+      <div>
+        <div
+          style={{
+            fontFamily: "'Share Tech Mono',monospace",
+            fontSize: 9,
+            letterSpacing: 2,
+            color: "#4a7a72",
+            marginBottom: 6,
+          }}
+        >
+          CHAIN SELECTOR
+        </div>
+        <div
+          style={{
+            fontFamily: "'Share Tech Mono',monospace",
+            fontSize: 12,
+            letterSpacing: 1.4,
+            color: "#00ffc8",
+            marginBottom: 4,
+          }}
+        >
+          {selectedChainLabel.toUpperCase()}
+        </div>
+        <div
+          style={{
+            fontFamily: "'Share Tech Mono',monospace",
+            fontSize: 9,
+            letterSpacing: 1,
+            color: "#3a6660",
+            lineHeight: 1.6,
+          }}
+        >
+          {getNetworkName(selectedChain)} · {selectedWalletHint}
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 8 }}>
+        {CHAIN_OPTIONS.map((option) => {
+          const active = option.key === selectedChain;
+          return (
+            <button
+              key={option.key}
+              onClick={() => setSelectedChain(option.key)}
+              style={{
+                flex: 1,
+                fontFamily: "'Share Tech Mono',monospace",
+                fontSize: 10,
+                letterSpacing: 1.6,
+                padding: "9px 12px",
+                border: `1px solid ${active ? "#00ffc8" : "rgba(0,255,200,.12)"}`,
+                background: active ? "rgba(0,255,200,.14)" : "transparent",
+                color: active ? "#00ffc8" : "#4a7a72",
+                cursor: "pointer",
+              }}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div
+        style={{
+          fontFamily: "'Share Tech Mono',monospace",
+          fontSize: 9,
+          letterSpacing: 1,
+          color: "#3a6660",
+          lineHeight: 1.7,
+        }}
+      >
+        {selectedChain === "starknet"
+          ? "Starknet mode uses the Cairo contracts, relayed claims, and stealth recovery note download."
+          : "Flow EVM mode routes to the Flow verifier and ZusProtocol contracts with the same shared Filecoin campaign data."}
+      </div>
+      <a
+        href={DOCS_URL}
+        target="_blank"
+        rel="noreferrer"
+        style={{
+          fontFamily: "'Share Tech Mono',monospace",
+          fontSize: 10,
+          letterSpacing: 1.6,
+          color: "#00ddb0",
+          textDecoration: "none",
+          borderTop: "1px solid rgba(0,255,200,.08)",
+          paddingTop: 10,
+        }}
+      >
+        OPEN DOCS
+      </a>
     </div>
   );
 
