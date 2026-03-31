@@ -41,6 +41,7 @@ use lambdaworks_math::{
 use num_bigint::{BigInt, BigUint, Sign};
 use rand::{RngCore, rngs::OsRng};
 use reqwest::{StatusCode, blocking::Client};
+use serde_json::{Value, json};
 
 const LOGO: &[&str] = &[
     "███████╗██╗   ██╗███████╗",
@@ -103,6 +104,28 @@ struct ResolvedCampaignClaim {
     claim: ApiClaimPayload,
 }
 
+struct PreparedStarknetClaimBundle {
+    api_base: String,
+    campaign_selector: String,
+    campaign_name: String,
+    claim_campaign_id: String,
+    onchain_campaign_id: String,
+    eligible_address_hex: String,
+    base_address: String,
+    eligible_root_hex: String,
+    eligible_index: usize,
+    proof_nodes: usize,
+    nullifier_hash_hex: String,
+    stealth_address: String,
+    message_domain_hex: String,
+    ephemeral_secret_hex: String,
+    ephemeral_pubkey_x_hex: String,
+    ephemeral_pubkey_y_hex: String,
+    wallet_secret_hex: String,
+    stealth_private_key_hex: String,
+    proof_values: Vec<String>,
+}
+
 impl App {
     fn run(&mut self) {
         let action_kind = self.current_form().kind;
@@ -163,6 +186,7 @@ fn execute_action(form: &ActionForm) -> AppResult<CommandResult> {
         ActionKind::FilecoinTxExplorer => run_filecoin_tx_lookup(form),
         ActionKind::FilecoinTxClaimLookup => run_filecoin_tx_claim_lookup(form),
         ActionKind::GenerateZkWitness => run_prepare_starknet_claim(form),
+        ActionKind::SubmitStarknetClaim => run_submit_starknet_claim(form),
         ActionKind::RecoverStarknetStealth => run_recover_starknet_stealth(form),
         ActionKind::CheckAddress => run_derive_starknet_address(form),
         _ => {
@@ -562,6 +586,9 @@ fn build_command(form: &ActionForm) -> AppResult<Vec<String>> {
         ActionKind::GenerateZkWitness => Err(AppError::message(
             "Prepare Starknet Claim is handled locally inside the TUI plus the proof API, not cast.",
         )),
+        ActionKind::SubmitStarknetClaim => Err(AppError::message(
+            "Submit Starknet Claim is handled locally inside the TUI plus the Starknet relayer, not cast.",
+        )),
         ActionKind::RecoverStarknetStealth => Err(AppError::message(
             "Recover Starknet Stealth is handled locally inside the TUI, not cast.",
         )),
@@ -673,6 +700,20 @@ fn fallback_command_preview(form: &ActionForm) -> String {
                 "<secret-derived-eligible-address>"
             )
         }
+        ActionKind::SubmitStarknetClaim => {
+            let api_base = normalize_api_base_url(form.value("api_base_url"))
+                .unwrap_or_else(|_| "http://127.0.0.1:3000".to_string());
+            let relayer_base = normalize_base_url(
+                form.value("relayer_base_url"),
+                "Relayer base URL is required.",
+            )
+            .unwrap_or_else(|_| "http://127.0.0.1:4000".to_string());
+            format!(
+                "GET {api_base}/campaigns/{}/claim/{} + POST {relayer_base}/relay-claim",
+                form.value("campaign_selector"),
+                "<secret-derived-eligible-address>"
+            )
+        }
         ActionKind::RecoverStarknetStealth => "local stealth key recovery".to_string(),
         ActionKind::CheckAddress => "local starknet address derivation".to_string(),
         _ => form.command_label.to_string(),
@@ -689,6 +730,8 @@ fn focus_fields_for_error(app: &mut App, message: &str) {
     let lowered = message.to_ascii_lowercase();
     let key = if lowered.contains("api base url") {
         Some("api_base_url")
+    } else if lowered.contains("relayer") {
+        Some("relayer_base_url")
     } else if lowered.contains("campaign id")
         || lowered.contains("campaign name")
         || lowered.contains("campaign selector")
@@ -849,7 +892,7 @@ fn run_filecoin_tx_claim_lookup(form: &ActionForm) -> AppResult<CommandResult> {
     })
 }
 
-fn run_prepare_starknet_claim(form: &ActionForm) -> AppResult<CommandResult> {
+fn prepare_starknet_claim_bundle(form: &ActionForm) -> AppResult<PreparedStarknetClaimBundle> {
     let api_base = normalize_api_base_url(&required_value(
         form,
         "api_base_url",
@@ -982,104 +1025,145 @@ fn run_prepare_starknet_claim(form: &ActionForm) -> AppResult<CommandResult> {
         .chain(eligible_path.iter().map(stark_field_to_hex))
         .collect::<Vec<_>>();
 
+    Ok(PreparedStarknetClaimBundle {
+        api_base,
+        campaign_selector: campaign_selector.to_string(),
+        campaign_name: campaign.name,
+        claim_campaign_id: claim.campaign_id,
+        onchain_campaign_id,
+        eligible_address_hex,
+        base_address,
+        eligible_root_hex: stark_field_to_hex(&eligible_root),
+        eligible_index,
+        proof_nodes: eligible_path.len(),
+        nullifier_hash_hex: stark_field_to_hex(&nullifier_hash),
+        stealth_address,
+        message_domain_hex: stark_field_to_hex(&message_domain),
+        ephemeral_secret_hex: stark_field_to_hex(&ephemeral_secret),
+        ephemeral_pubkey_x_hex: stark_field_to_hex(&ephemeral_pubkey_x),
+        ephemeral_pubkey_y_hex: stark_field_to_hex(&ephemeral_pubkey_y),
+        wallet_secret_hex: stark_field_to_hex(&wallet_secret),
+        stealth_private_key_hex: stark_field_to_hex(&stealth_private_scalar),
+        proof_values,
+    })
+}
+
+fn starknet_claim_bundle_json(bundle: &PreparedStarknetClaimBundle) -> Value {
+    json!({
+        "campaign_id": bundle.onchain_campaign_id,
+        "claim": {
+            "message_domain": bundle.message_domain_hex,
+            "eligible_root": bundle.eligible_root_hex,
+            "ephemeral_pubkey_x": bundle.ephemeral_pubkey_x_hex,
+            "ephemeral_pubkey_y": bundle.ephemeral_pubkey_y_hex,
+            "nullifier_hash": bundle.nullifier_hash_hex,
+            "stealth_address": bundle.stealth_address,
+        },
+        "proof": bundle.proof_values,
+    })
+}
+
+fn format_prepared_starknet_claim_output(bundle: &PreparedStarknetClaimBundle) -> AppResult<String> {
     let mut output = String::new();
     let _ = writeln!(output, "Prepared a Starknet relayer bundle locally.");
     let _ = writeln!(output);
-    let _ = writeln!(output, "Campaign selector: {campaign_selector}");
-    let _ = writeln!(output, "Resolved campaign: {}", campaign.name);
-    let _ = writeln!(output, "Campaign ID: {}", claim.campaign_id);
-    let _ = writeln!(output, "Onchain campaign ID: {onchain_campaign_id}");
-    let _ = writeln!(output, "Eligible address: {eligible_address_hex}");
-    let _ = writeln!(output, "Base address: {base_address}");
-    let _ = writeln!(output, "Eligible root: {}", stark_field_to_hex(&eligible_root));
-    let _ = writeln!(output, "Eligible index: {eligible_index}");
-    let _ = writeln!(output, "Proof nodes: {}", eligible_path.len());
-    let _ = writeln!(output, "Nullifier hash: {}", stark_field_to_hex(&nullifier_hash));
-    let _ = writeln!(output, "Stealth address: {stealth_address}");
+    let _ = writeln!(output, "Campaign selector: {}", bundle.campaign_selector);
+    let _ = writeln!(output, "Resolved campaign: {}", bundle.campaign_name);
+    let _ = writeln!(output, "Campaign ID: {}", bundle.claim_campaign_id);
+    let _ = writeln!(output, "Onchain campaign ID: {}", bundle.onchain_campaign_id);
+    let _ = writeln!(output, "Eligible address: {}", bundle.eligible_address_hex);
+    let _ = writeln!(output, "Base address: {}", bundle.base_address);
+    let _ = writeln!(output, "Eligible root: {}", bundle.eligible_root_hex);
+    let _ = writeln!(output, "Eligible index: {}", bundle.eligible_index);
+    let _ = writeln!(output, "Proof nodes: {}", bundle.proof_nodes);
+    let _ = writeln!(output, "Nullifier hash: {}", bundle.nullifier_hash_hex);
+    let _ = writeln!(output, "Stealth address: {}", bundle.stealth_address);
     let _ = writeln!(output);
     let _ = writeln!(output, "Relayer body draft (authorization omitted):");
-    let _ = writeln!(output, "{{");
-    let _ = writeln!(output, "  \"campaign_id\": \"{onchain_campaign_id}\",");
-    let _ = writeln!(output, "  \"claim\": {{");
     let _ = writeln!(
         output,
-        "    \"message_domain\": \"{}\",",
-        stark_field_to_hex(&message_domain)
+        "{}",
+        serde_json::to_string_pretty(&starknet_claim_bundle_json(bundle))
+            .map_err(|error| AppError::message(format!("failed to format relayer bundle JSON: {error}")))?,
     );
-    let _ = writeln!(
-        output,
-        "    \"eligible_root\": \"{}\",",
-        stark_field_to_hex(&eligible_root)
-    );
-    let _ = writeln!(
-        output,
-        "    \"ephemeral_pubkey_x\": \"{}\",",
-        stark_field_to_hex(&ephemeral_pubkey_x)
-    );
-    let _ = writeln!(
-        output,
-        "    \"ephemeral_pubkey_y\": \"{}\",",
-        stark_field_to_hex(&ephemeral_pubkey_y)
-    );
-    let _ = writeln!(
-        output,
-        "    \"nullifier_hash\": \"{}\",",
-        stark_field_to_hex(&nullifier_hash)
-    );
-    let _ = writeln!(output, "    \"stealth_address\": \"{stealth_address}\"");
-    let _ = writeln!(output, "  }},");
-    let _ = writeln!(output, "  \"proof\": [");
-    for (index, item) in proof_values.iter().enumerate() {
-        let suffix = if index + 1 == proof_values.len() { "" } else { "," };
-        let _ = writeln!(output, "    \"{item}\"{suffix}");
-    }
-    let _ = writeln!(output, "  ]");
-    let _ = writeln!(output, "}}");
     let _ = writeln!(output);
     let _ = writeln!(output, "Local recovery note:");
-    let _ = writeln!(output, "  wallet_secret: {}", stark_field_to_hex(&wallet_secret));
-    let _ = writeln!(output, "  eligible_address: {eligible_address_hex}");
-    let _ = writeln!(
-        output,
-        "  message_domain: {}",
-        stark_field_to_hex(&message_domain)
-    );
-    let _ = writeln!(
-        output,
-        "  eligible_root: {}",
-        stark_field_to_hex(&eligible_root)
-    );
-    let _ = writeln!(
-        output,
-        "  ephemeral_secret: {}",
-        stark_field_to_hex(&ephemeral_secret)
-    );
-    let _ = writeln!(
-        output,
-        "  ephemeral_pubkey_x: {}",
-        stark_field_to_hex(&ephemeral_pubkey_x)
-    );
-    let _ = writeln!(
-        output,
-        "  ephemeral_pubkey_y: {}",
-        stark_field_to_hex(&ephemeral_pubkey_y)
-    );
-    let _ = writeln!(
-        output,
-        "  stealth_private_key: {}",
-        stark_field_to_hex(&stealth_private_scalar)
-    );
-    let _ = writeln!(output, "  stealth_address: {stealth_address}");
+    let _ = writeln!(output, "  wallet_secret: {}", bundle.wallet_secret_hex);
+    let _ = writeln!(output, "  eligible_address: {}", bundle.eligible_address_hex);
+    let _ = writeln!(output, "  message_domain: {}", bundle.message_domain_hex);
+    let _ = writeln!(output, "  eligible_root: {}", bundle.eligible_root_hex);
+    let _ = writeln!(output, "  ephemeral_secret: {}", bundle.ephemeral_secret_hex);
+    let _ = writeln!(output, "  ephemeral_pubkey_x: {}", bundle.ephemeral_pubkey_x_hex);
+    let _ = writeln!(output, "  ephemeral_pubkey_y: {}", bundle.ephemeral_pubkey_y_hex);
+    let _ = writeln!(output, "  stealth_private_key: {}", bundle.stealth_private_key_hex);
+    let _ = writeln!(output, "  stealth_address: {}", bundle.stealth_address);
     let _ = writeln!(output);
     let _ = writeln!(
         output,
         "Next step: POST this body directly to the Starknet relayer. No claimant wallet signature is required for relay submission."
     );
 
+    Ok(output)
+}
+
+fn run_prepare_starknet_claim(form: &ActionForm) -> AppResult<CommandResult> {
+    let bundle = prepare_starknet_claim_bundle(form)?;
+    let output = format_prepared_starknet_claim_output(&bundle)?;
+
     Ok(CommandResult {
         command_preview: format!(
-            "GET {api_base}/campaigns/{}/claim/{} + local Starknet claim bundle",
-            claim.campaign_id, eligible_address_hex
+            "GET {}/campaigns/{}/claim/{} + local Starknet claim bundle",
+            bundle.api_base, bundle.claim_campaign_id, bundle.eligible_address_hex
+        ),
+        output,
+        success: true,
+    })
+}
+
+fn run_submit_starknet_claim(form: &ActionForm) -> AppResult<CommandResult> {
+    let bundle = prepare_starknet_claim_bundle(form)?;
+    let relayer_base = normalize_base_url(
+        &required_value(form, "relayer_base_url", "Relayer base URL is required.")?,
+        "Relayer base URL is required.",
+    )?;
+    let relay_url = format!("{relayer_base}/relay-claim");
+    let request_body = starknet_claim_bundle_json(&bundle);
+    let client = Client::builder()
+        .timeout(Duration::from_secs(20))
+        .build()
+        .map_err(|source| AppError::http("failed to build the Starknet relayer client", source))?;
+    let response = client
+        .post(&relay_url)
+        .json(&request_body)
+        .send()
+        .map_err(|source| AppError::http(format!("failed to post {relay_url}"), source))?;
+    let relay_response = parse_json_response::<Value>(response, &relay_url)?;
+    let tx_hash = relay_response
+        .get("transaction_hash")
+        .and_then(Value::as_str)
+        .unwrap_or("<missing>");
+
+    let mut output = format_prepared_starknet_claim_output(&bundle)?;
+    let _ = writeln!(output);
+    let _ = writeln!(output, "Relayer submission:");
+    let _ = writeln!(output, "  relayer_url: {relay_url}");
+    let _ = writeln!(output, "  transaction_hash: {tx_hash}");
+    if let Some(stealth_address) = relay_response.get("stealth_address").and_then(Value::as_str) {
+        let _ = writeln!(output, "  stealth_address: {stealth_address}");
+    }
+    let _ = writeln!(output);
+    let _ = writeln!(output, "Relay response JSON:");
+    let _ = writeln!(
+        output,
+        "{}",
+        serde_json::to_string_pretty(&relay_response)
+            .map_err(|error| AppError::message(format!("failed to format relayer response JSON: {error}")))?,
+    );
+
+    Ok(CommandResult {
+        command_preview: format!(
+            "GET {}/campaigns/{}/claim/{} + POST {relay_url}",
+            bundle.api_base, bundle.claim_campaign_id, bundle.eligible_address_hex
         ),
         output,
         success: true,
@@ -1743,9 +1827,13 @@ fn normalize_circuit_dir(raw: &str) -> AppResult<PathBuf> {
 }
 
 fn normalize_api_base_url(raw: &str) -> AppResult<String> {
+    normalize_base_url(raw, "API base URL is required.")
+}
+
+fn normalize_base_url(raw: &str, message: &str) -> AppResult<String> {
     let trimmed = raw.trim().trim_end_matches('/');
     if trimmed.is_empty() {
-        return Err(AppError::message("API base URL is required."));
+        return Err(AppError::message(message));
     }
     Ok(trimmed.to_string())
 }

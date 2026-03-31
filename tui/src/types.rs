@@ -4,6 +4,7 @@ use ratatui::{Terminal, backend::CrosstermBackend};
 use serde::Deserialize;
 
 pub const DEFAULT_API_BASE_URL: &str = "http://127.0.0.1:3000";
+pub const DEFAULT_RELAYER_BASE_URL: &str = "http://127.0.0.1:4000";
 pub const DEFAULT_ZUS_PROTOCOL_ADDRESS: &str = "";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -18,6 +19,7 @@ pub enum ActionKind {
     FilecoinTxExplorer,
     FilecoinTxClaimLookup,
     GenerateZkWitness,
+    SubmitStarknetClaim,
     RecoverStarknetStealth,
     ListAccounts,
     CheckAddress,
@@ -277,6 +279,62 @@ impl App {
                     ],
                 },
                 ActionForm {
+                    kind: ActionKind::SubmitStarknetClaim,
+                    label: "Submit Starknet Claim",
+                    command_label: "API claim + local bundle + POST /relay-claim",
+                    description: "Derive the private base address from a local secret, fetch the matching Starknet claim payload from the Filecoin-backed proof API, build the anonymous claim bundle locally, and post it directly to the Starknet relayer.",
+                    fields: vec![
+                        FormField {
+                            key: "api_base_url",
+                            label: "API Base URL",
+                            hint: "http://127.0.0.1:3000",
+                            value: default_api_base_url(),
+                            sensitive: false,
+                            required: true,
+                        },
+                        FormField {
+                            key: "relayer_base_url",
+                            label: "Relayer Base URL",
+                            hint: "http://127.0.0.1:4000",
+                            value: default_relayer_base_url(),
+                            sensitive: false,
+                            required: true,
+                        },
+                        FormField {
+                            key: "campaign_selector",
+                            label: "Campaign",
+                            hint: "required: campaign name or UUID",
+                            value: String::new(),
+                            sensitive: false,
+                            required: true,
+                        },
+                        FormField {
+                            key: "wallet_secret",
+                            label: "Wallet Secret",
+                            hint: "felt252 secret that defines the eligible base address",
+                            value: String::new(),
+                            sensitive: true,
+                            required: true,
+                        },
+                        FormField {
+                            key: "message_domain",
+                            label: "Message Domain",
+                            hint: "ZUSMVP01 or felt252",
+                            value: "ZUSMVP01".to_string(),
+                            sensitive: false,
+                            required: true,
+                        },
+                        FormField {
+                            key: "ephemeral_secret",
+                            label: "Ephemeral Secret",
+                            hint: "optional: felt252, blank generates one",
+                            value: String::new(),
+                            sensitive: true,
+                            required: false,
+                        },
+                    ],
+                },
+                ActionForm {
                     kind: ActionKind::RecoverStarknetStealth,
                     label: "Recover Starknet Stealth",
                     command_label: "local stealth key recovery",
@@ -345,7 +403,7 @@ impl App {
             selected_field: 0,
             focus: Focus::Actions,
             output:
-                "Campaign Explorer checks Starknet eligibility from the shared Filecoin-backed API. Prepare Starknet Claim builds a relayer-ready claim bundle and local recovery note. Recover Starknet Stealth reconstructs the one-time spend material locally."
+                "Campaign Explorer checks Starknet eligibility from the shared Filecoin-backed API. Prepare Starknet Claim builds a relayer-ready claim bundle, and Submit Starknet Claim posts it straight to the relayer. Recover Starknet Stealth reconstructs the one-time spend material locally."
                     .to_string(),
             last_command: format!("GET {}/campaigns", default_api_base_url()),
             status: "Ready".to_string(),
@@ -469,6 +527,10 @@ pub fn default_circuit_dir() -> String {
 
 pub fn default_api_base_url() -> String {
     env::var("ZUS_API_BASE_URL").unwrap_or_else(|_| DEFAULT_API_BASE_URL.to_string())
+}
+
+pub fn default_relayer_base_url() -> String {
+    env::var("ZUS_RELAYER_URL").unwrap_or_else(|_| DEFAULT_RELAYER_BASE_URL.to_string())
 }
 
 pub fn default_rpc_url() -> String {
