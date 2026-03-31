@@ -1,0 +1,38 @@
+[
+  {
+    "timestamp": "2026-03-26T18:10:00+08:00",
+    "action": "Cairo contract compilation",
+    "result": "Built the Starknet Cairo workspace in starknet/ and compiled the protocol contracts, shared types, libraries, and supporting mocks successfully.",
+    "status": "completed"
+  },
+  {
+    "timestamp": "2026-03-26T18:35:00+08:00",
+    "action": "ZK circuit implementation",
+    "result": "Implemented the Starknet circuit modules for stealth address derivation, nullifier generation, fixed-depth Merkle membership verification, and the combined Cairo verifier path.",
+    "status": "completed"
+  },
+  {
+    "timestamp": "2026-03-26T19:24:00+08:00",
+    "action": "Test suite execution",
+    "result": "Ran the Starknet Foundry test suite and confirmed 7 passing tests covering stealth derivation, nullifiers, Merkle proofs, campaign creation, funding, successful claims, and double-claim prevention.",
+    "status": "completed"
+  },
+  {
+    "timestamp": "2026-03-27T10:15:00+08:00",
+    "action": "Relayer server setup",
+    "result": "Added a Node.js relayer service in starknet/relayer/ that accepts off-chain claim submissions, verifies claimant authorization, submits the claim from the relayer wallet, and returns the Starknet transaction hash.",
+    "status": "completed"
+  },
+  {
+    "timestamp": "2026-03-27T10:40:00+08:00",
+    "action": "Frontend Starknet integration",
+    "result": "Replaced the prior EVM wallet and contract interaction layer with Starknet.js integration, added Argent X and Braavos wallet support, and updated the claim flow to send locally generated proof data to the relayer instead of submitting directly from the user wallet.",
+    "status": "completed"
+  },
+  {
+    "timestamp": "2026-03-27T11:00:00+08:00",
+    "action": "Deploy script creation",
+    "result": "Created starknet/scripts/deploy.ts to compile Cairo contracts, declare and deploy ZusProtocol plus the verifier to Starknet testnet, persist addresses to starknet/deployments.json, and print deployment outputs.",
+    "status": "completed"
+  }
+]

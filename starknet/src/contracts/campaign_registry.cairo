@@ -1,0 +1,1 @@
+../../../contracts/starknet/campaign_registry.cairo

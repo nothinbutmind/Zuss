@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { resolveApiUrl } from "./config.js";
+import { appConfig, getNetworkName, resolveApiUrl } from "./config.js";
+import {
+  buildWalletAccountForChain,
+  connectWalletForChain,
+  normalizeChainKey,
+} from "./chains.js";
 import ZusCampaigns from "./ZusCampaigns.jsx";
 import ZusDashboard from "./ZusDashboard.jsx";
 import ZusRewards from "./ZusRewards.jsx";
@@ -12,8 +17,19 @@ const CAMPAIGNS_HASH = "#/campaigns";
 const REWARDS_HASH = "#/rewards";
 const LEGACY_VAULT_HASH = "#/vault";
 const PROTOCOLS_HASH = "#/protocols";
+const DOCS_URL = "https://deepwiki.com/nothinbutmind/ZUS_Protocol";
 const SUBTITLE =
-  "Zus is a token-gated rewards protocol built on Flow EVM — where eligibility is verified, identity stays hidden, and balances remain confidential.";
+  "Zus unifies Filecoin and Starknet in one app. Campaign data and Merkle trees stay off-chain in the shared Rust plus Filecoin layer, the browser prepares the private claim flow, and transactions are relayed to Starknet Cairo contracts.";
+
+const EMPTY_WALLET = {
+  account: "",
+  chainId: "",
+  connecting: false,
+  error: "",
+  walletProvider: null,
+  walletAccount: null,
+  walletName: "",
+};
 
 function getCurrentRoute() {
   if (typeof window === "undefined") {
@@ -134,9 +150,14 @@ function TypewriterSub() {
   }, []);
 
   const highlight = (value) => {
-    const parts = value.split(/(built on Flow EVM|remain confidential)/g);
+    const parts = value.split(
+      /(Filecoin and Starknet|campaign data and Merkle trees stay off-chain|the browser prepares the private claim flow|transactions are relayed to Starknet Cairo contracts)/g,
+    );
     return parts.map((part, index) =>
-      part === "built on Flow EVM" || part === "remain confidential" ? (
+      part === "Filecoin and Starknet" ||
+      part === "campaign data and Merkle trees stay off-chain" ||
+      part === "the browser prepares the private claim flow" ||
+      part === "transactions are relayed to Starknet Cairo contracts" ? (
         <span key={index} style={{ color: "#00ddb0" }}>
           {part}
         </span>
@@ -797,6 +818,28 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
               {item}
             </a>
           ))}
+          <a
+            className="nav-link"
+            href={DOCS_URL}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              fontFamily: "'Share Tech Mono',monospace",
+              fontSize: 12,
+              color: "#3a6660",
+              letterSpacing: 2,
+              textDecoration: "none",
+              transition: "color .2s",
+            }}
+            onMouseEnter={(event) => {
+              event.target.style.color = "#00ffc8";
+            }}
+            onMouseLeave={(event) => {
+              event.target.style.color = "#3a6660";
+            }}
+          >
+            DOCS
+          </a>
           <Btn className="nav-cta" outline onClick={() => void onConnect()}>
             {wallet.account ? shortAddress(wallet.account) : "CONNECT WALLET"}
           </Btn>
@@ -814,11 +857,14 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
             {[
               { label: "PRINCIPLES", href: "#principles" },
               { label: "FEATURES", href: "#how-zus-works" },
+              { label: "DOCS", href: DOCS_URL, external: true },
             ].map((item) => (
               <a
                 key={item.label}
                 href={item.href}
                 onClick={() => setMobileMenuOpen(false)}
+                target={item.external ? "_blank" : undefined}
+                rel={item.external ? "noreferrer" : undefined}
                 style={{
                   fontFamily: "'Share Tech Mono',monospace",
                   fontSize: 12,
@@ -946,6 +992,111 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
             <Btn className="hero-btn" onClick={onNavigateStart}>
               GET STARTED
             </Btn>
+            <Btn className="hero-btn" outline onClick={() => window.open(DOCS_URL, "_blank", "noopener,noreferrer")}>
+              OPEN DOCS
+            </Btn>
+          </div>
+
+          <div
+            style={{
+              marginTop: 28,
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
+              gap: 14,
+              maxWidth: 980,
+              marginInline: "auto",
+              animation: "fadeUp .9s 1s both",
+            }}
+          >
+            {[
+              {
+                tag: "DOCS_LINK",
+                title: "PROJECT DOCS",
+                desc:
+                  "Open the DeepWiki documentation for the full architecture, contracts, relayer flow, and Starknet rebuild details.",
+                action: "OPEN DEEPWIKI",
+              },
+              {
+                tag: "OFFCHAIN_LAYER",
+                title: "FILECOIN + RUST API",
+                desc:
+                  "Campaign metadata, recipient sets, and Merkle trees stay off-chain here as the shared source of truth for the Starknet payment path.",
+              },
+              {
+                tag: "STARKNET_PATH",
+                title: "STARKNET CAIRO CONTRACTS",
+                desc:
+                  "The app routes claims to the Cairo contracts, relayed Starknet submission flow, and stealth recovery path.",
+              },
+              {
+                tag: "PRIVATE_PAYMENT_PATH",
+                title: "RELAYER + STEALTH PAYOUTS",
+                desc:
+                  "Users prepare the claim locally, the relayer broadcasts on Starknet, and funds land on a one-time stealth address.",
+              },
+            ].map((item) => (
+              <div
+                key={item.tag}
+                style={{
+                  textAlign: "left",
+                  border: "1px solid rgba(0,255,200,.12)",
+                  background: "rgba(0,255,200,.03)",
+                  padding: "18px 18px 20px",
+                  boxShadow: "0 0 18px rgba(0,255,200,.04)",
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: "'Share Tech Mono',monospace",
+                    fontSize: 10,
+                    color: "#2a5550",
+                    letterSpacing: 2,
+                    marginBottom: 10,
+                  }}
+                >
+                  {item.tag}
+                </div>
+                <div
+                  style={{
+                    fontFamily: "'Share Tech Mono',monospace",
+                    fontSize: 15,
+                    color: "#00ffc8",
+                    letterSpacing: 1.4,
+                    marginBottom: 10,
+                  }}
+                >
+                  {item.title}
+                </div>
+                <div
+                  style={{
+                    fontFamily: "'Share Tech Mono',monospace",
+                    fontSize: 12,
+                    color: "#3a6660",
+                    lineHeight: 1.8,
+                  }}
+                >
+                  {item.desc}
+                </div>
+                {item.action ? (
+                  <a
+                    href={DOCS_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      display: "inline-block",
+                      marginTop: 14,
+                      fontFamily: "'Share Tech Mono',monospace",
+                      fontSize: 11,
+                      letterSpacing: 1.8,
+                      color: "#00ddb0",
+                      textDecoration: "none",
+                    }}
+                  >
+                    {item.action}
+                  </a>
+                ) : null}
+              </div>
+            ))}
           </div>
 
         </div>
@@ -959,12 +1110,12 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
           ENCRYPTED BY DESIGN.
         </h2>
         <p style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: 13, color: "#3a6660", marginBottom: 40, lineHeight: 1.9 }}>
-          Powered by ZK proofs, a Rust campaign API, and private transactions that keep the recipient graph off the public surface area.
+          Keep the campaign and Merkle data off-chain, prepare the claim in the browser, and relay the final execution step to Starknet Cairo contracts.
         </p>
         <div className="feature-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(320px,1fr))", gap: 22 }}>
           <FeatCard tag="// CONFIDENTIAL_AIRDROP" title="DROP TO THE RIGHT WALLETS. TELL NO ONE ELSE." desc="Distribute tokens to verified holders without exposing the recipient list or individual balances." extra="+ LIVE CAMPAIGNS >" delay={0} />
-          <FeatCard tag="// RUST_API_SYNC" title="GET STARTED NOW OPENS THE DASHBOARD." desc="The landing page routes into the operator dashboard first, while the other pages stay available through the same app shell and original design language." delay={120} />
-          <FeatCard tag="// SMART_CONTRACT_HANDOFF" title="CREATE OFFCHAIN FIRST, DEPLOY ONCHAIN SECOND." desc="The app creates the Merkle campaign in Rust first, then asks the connected wallet to call the ZusProtocol contract with the returned root and onchain id." extra="RPC + CONTRACT VIA ENV" delay={240} />
+          <FeatCard tag="// STARKNET_PATH" title="ONE APP. ONE PRIVATE EXECUTION PATH." desc="The active on-chain path is Starknet, where Cairo contracts enforce nullifiers, Merkle checks, and private stealth payouts." delay={120} />
+          <FeatCard tag="// SMART_CONTRACT_HANDOFF" title="KEEP DATA OFFCHAIN. EXECUTE ON STARKNET." desc="The app creates the campaign and Merkle tree in the shared Rust plus Filecoin layer first, then routes execution to Starknet through the relayer." extra="FILECOIN + APP + STARKNET" delay={240} />
         </div>
       </section>
 
@@ -975,9 +1126,9 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
         </h2>
         <div style={{ width: 36, height: 2, background: "#00ffc8", margin: "10px 0 40px", boxShadow: "0 0 8px #00ffc8" }} />
         <div style={{ display: "flex", flexDirection: "column", gap: 22, maxWidth: 1280 }}>
-          <HowStep dot="1" title="CONNECT WALLET" desc="The operator wallet stays in the existing interface, but now it actually connects and becomes the campaign creator address sent to the Rust API." delay={0} />
-          <HowStep dot="2" title="CREATE CAMPAIGN" desc="The dashboard posts name plus recipients to /campaigns, gets back merkle_root and onchain_campaign_id, then forwards those values into the contract call." delay={150} />
-          <HowStep dot="3" title="VERIFY THE RESULT" desc="Every campaign in the operator stream is rendered from the Rust API feed so the UI mirrors the backend catalog instead of static placeholders." delay={300} />
+          <HowStep dot="1" title="CONNECT STARKNET WALLET" desc="Connect Argent X or Braavos so the app can prepare a claimant-bound private payment flow." delay={0} />
+          <HowStep dot="2" title="KEEP CAMPAIGN DATA OFFCHAIN" desc="The app posts campaign metadata and recipients into the shared Rust plus Filecoin layer, which builds and serves the Merkle tree." delay={150} />
+          <HowStep dot="3" title="RELAY TO STARKNET" desc="After the off-chain data is ready, the browser prepares the claim package and the relayer submits the final Cairo transaction." delay={300} />
         </div>
       </section>
 
@@ -989,10 +1140,10 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
             OPERATIONAL USE CASES
           </h2>
           <div className="use-cases-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 22, maxWidth: 1400, margin: "0 auto" }}>
-            <UseCard title="PRIVATE AIRDROPS" desc="Store allowlists offchain in Rust and only push the campaign root plus payout logic onchain." delay={0} />
+            <UseCard title="PRIVATE AIRDROPS" desc="Store allowlists and Merkle data off-chain, then send the on-chain payout path through Starknet." delay={0} />
             <UseCard title="LOYALTY CAMPAIGNS" desc="Run repeated reward drops while keeping the public dashboard free of full recipient disclosure." delay={100} />
             <UseCard title="GATED REBATES" desc="Use the same flow for consumer cashback or merchant promotions with a creator-controlled contract deployment." delay={200} />
-            <UseCard title="STEALTH CLAIM SYSTEMS" desc="Keep the original stealth-address and proof path design while giving operators a real browser-based control panel." delay={300} />
+            <UseCard title="STEALTH CLAIM SYSTEMS" desc="Use Starknet when you want the browser-based Cairo relayer flow and local stealth recovery note download." delay={300} />
           </div>
         </div>
       </section>
@@ -1041,7 +1192,17 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
         <div className="footer-copy" style={{ textAlign: "center", lineHeight: 1.8 }}>
           <div>© 2026 ZUS PROTOCOL. ALL RIGHTS RESERVED.</div>
         </div>
-        <span className="footer-links">X_FEED · DISCORD_SERVER · GITHUB_REPO · PRIVACY_POLICY</span>
+        <span className="footer-links">
+          X_FEED · DISCORD_SERVER · GITHUB_REPO · PRIVACY_POLICY ·{" "}
+          <a
+            href={DOCS_URL}
+            target="_blank"
+            rel="noreferrer"
+            style={{ color: "#00ddb0", textDecoration: "none" }}
+          >
+            DOCS
+          </a>
+        </span>
       </footer>
     </>
   );
@@ -1049,16 +1210,15 @@ function LandingPage({ onNavigateStart, onNavigateCreate, wallet, onConnect }) {
 
 export default function App() {
   const [route, setRoute] = useState(getCurrentRoute);
-  const [wallet, setWallet] = useState({
-    account: "",
-    chainId: "",
-    connecting: false,
-    error: "",
+  const selectedChain = "starknet";
+  const [walletSessions, setWalletSessions] = useState({
+    starknet: { ...EMPTY_WALLET },
   });
   const [selectedCampaignId, setSelectedCampaignId] = useState(getSelectedCampaignId);
   const [campaigns, setCampaigns] = useState([]);
   const [campaignsLoading, setCampaignsLoading] = useState(false);
   const [campaignsError, setCampaignsError] = useState("");
+  const wallet = walletSessions[selectedChain];
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -1070,31 +1230,83 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!window.ethereum?.request) {
+    if (selectedChain !== "starknet" || !wallet.walletProvider?.on) {
       return undefined;
     }
 
-    const handleAccountsChanged = (accounts) => {
-      setWallet((current) => ({
+    const handleAccountsChanged = (accounts = []) => {
+      const nextAccount = accounts?.[0] || "";
+      setWalletSessions((current) => ({
         ...current,
-        account: accounts?.[0] || "",
-        error: "",
+        starknet: {
+          ...current.starknet,
+          account: nextAccount,
+          walletAccount: nextAccount
+            ? buildWalletAccountForChain("starknet", appConfig, current.starknet.walletProvider, nextAccount)
+            : null,
+          error: "",
+        },
       }));
     };
 
-    const handleChainChanged = (chainIdHex) => {
-      setWallet((current) => ({
+    const handleNetworkChanged = (chainId, accounts = []) => {
+      const nextAccount = accounts?.[0] || "";
+      setWalletSessions((current) => ({
         ...current,
-        chainId: chainIdHex ? Number.parseInt(chainIdHex, 16).toString() : "",
+        starknet: {
+          ...current.starknet,
+          account: nextAccount || current.starknet.account,
+          chainId: chainId ? String(chainId) : "",
+          walletAccount: nextAccount
+            ? buildWalletAccountForChain("starknet", appConfig, current.starknet.walletProvider, nextAccount)
+            : current.starknet.walletAccount,
+        },
       }));
     };
 
-    window.ethereum.on?.("accountsChanged", handleAccountsChanged);
-    window.ethereum.on?.("chainChanged", handleChainChanged);
+    wallet.walletProvider.on("accountsChanged", handleAccountsChanged);
+    wallet.walletProvider.on("networkChanged", handleNetworkChanged);
 
     return () => {
-      window.ethereum.removeListener?.("accountsChanged", handleAccountsChanged);
-      window.ethereum.removeListener?.("chainChanged", handleChainChanged);
+      wallet.walletProvider.off?.("accountsChanged", handleAccountsChanged);
+      wallet.walletProvider.off?.("networkChanged", handleNetworkChanged);
+    };
+  }, [selectedChain, wallet.walletProvider]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const reconnectWallet = async () => {
+      try {
+        const starknetSession = await connectWalletForChain("starknet", appConfig, {
+          silent: true,
+        }).catch(() => null);
+
+        if (!cancelled) {
+          setWalletSessions((current) => ({
+            ...current,
+            starknet: starknetSession?.address
+              ? {
+                  ...current.starknet,
+                  account: starknetSession.address,
+                  chainId: starknetSession.chainId,
+                  walletProvider: starknetSession.walletProvider,
+                  walletAccount: starknetSession.walletAccount,
+                  walletName: starknetSession.walletName,
+                  error: "",
+                }
+              : current.starknet,
+          }));
+        }
+      } catch {
+        // Silent reconnect failures should not block the initial render.
+      }
+    };
+
+    void reconnectWallet();
+
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -1163,58 +1375,166 @@ export default function App() {
   };
 
   const connectWallet = async () => {
-    if (!window.ethereum?.request) {
-      const message = "No injected wallet found. Install MetaMask or another EVM wallet.";
-      setWallet((current) => ({ ...current, error: message }));
-      throw new Error(message);
-    }
-
-    setWallet((current) => ({ ...current, connecting: true, error: "" }));
+    setWalletSessions((current) => ({
+      ...current,
+      [selectedChain]: {
+        ...current[selectedChain],
+        connecting: true,
+        error: "",
+      },
+    }));
 
     try {
-      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-      const chainIdHex = await window.ethereum.request({ method: "eth_chainId" });
-      const account = accounts?.[0] || "";
+      const session = await connectWalletForChain(selectedChain, appConfig);
+      if (!session?.address) {
+        throw new Error("No Starknet wallet connected. Install Argent X or Braavos.");
+      }
 
-      setWallet((current) => ({
+      setWalletSessions((current) => ({
         ...current,
-        account,
-        chainId: chainIdHex ? Number.parseInt(chainIdHex, 16).toString() : "",
-        connecting: false,
-        error: "",
+        [selectedChain]: {
+          ...current[selectedChain],
+          account: session.address,
+          chainId: session.chainId,
+          connecting: false,
+          walletProvider: session.walletProvider,
+          walletAccount: session.walletAccount,
+          walletName: session.walletName,
+          error: "",
+        },
       }));
 
-      return account;
+      return session.address;
     } catch (error) {
       const message = parseErrorMessage(error);
-      setWallet((current) => ({
+      setWalletSessions((current) => ({
         ...current,
-        connecting: false,
-        error: message,
+        [selectedChain]: {
+          ...current[selectedChain],
+          connecting: false,
+          error: message,
+        },
       }));
       throw error;
     }
   };
 
+  const visibleCampaigns = campaigns.filter((campaign) => {
+    const campaignChain = normalizeChainKey(campaign.execution_chain || selectedChain);
+    return campaignChain === selectedChain;
+  });
+  const selectedChainLabel = "Starknet";
+  const selectedWalletHint = "Argent X / Braavos";
+  const chainSelector = (
+    <div
+      style={{
+        position: "fixed",
+        top: 16,
+        right: 18,
+        zIndex: 160,
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        padding: 12,
+        minWidth: 220,
+        border: "1px solid rgba(0,255,200,.18)",
+        background: "rgba(2,13,15,.96)",
+        boxShadow: "0 0 22px rgba(0,255,200,.08)",
+      }}
+    >
+      <div>
+        <div
+          style={{
+            fontFamily: "'Share Tech Mono',monospace",
+            fontSize: 9,
+            letterSpacing: 2,
+            color: "#4a7a72",
+            marginBottom: 6,
+          }}
+        >
+          ACTIVE NETWORK
+        </div>
+        <div
+          style={{
+            fontFamily: "'Share Tech Mono',monospace",
+            fontSize: 12,
+            letterSpacing: 1.4,
+            color: "#00ffc8",
+            marginBottom: 4,
+          }}
+        >
+          {selectedChainLabel.toUpperCase()}
+        </div>
+        <div
+          style={{
+            fontFamily: "'Share Tech Mono',monospace",
+            fontSize: 9,
+            letterSpacing: 1,
+            color: "#3a6660",
+            lineHeight: 1.6,
+          }}
+        >
+          {getNetworkName(selectedChain)} · {selectedWalletHint}
+        </div>
+      </div>
+
+      <div
+        style={{
+          fontFamily: "'Share Tech Mono',monospace",
+          fontSize: 9,
+          letterSpacing: 1,
+          color: "#3a6660",
+          lineHeight: 1.7,
+        }}
+      >
+        Starknet mode uses the Cairo contracts, relayed claims, and stealth recovery note download.
+      </div>
+      <a
+        href={DOCS_URL}
+        target="_blank"
+        rel="noreferrer"
+        style={{
+          fontFamily: "'Share Tech Mono',monospace",
+          fontSize: 10,
+          letterSpacing: 1.6,
+          color: "#00ddb0",
+          textDecoration: "none",
+          borderTop: "1px solid rgba(0,255,200,.08)",
+          paddingTop: 10,
+        }}
+      >
+        OPEN DOCS
+      </a>
+    </div>
+  );
+
+  const renderWithChainSelector = (child) => (
+    <>
+      {chainSelector}
+      {child}
+    </>
+  );
+
   if (route === "campaigns") {
-    return (
+    return renderWithChainSelector(
       <ZusCampaigns
         wallet={wallet}
         onConnect={connectWallet}
         onNavigateHome={() => navigateTo("home")}
         onNavigatePage={navigateTo}
+        selectedChain={selectedChain}
       />
     );
   }
 
   if (route === "dashboard") {
-    return (
+    return renderWithChainSelector(
       <ZusDashboard
         wallet={wallet}
         onConnect={connectWallet}
         onNavigateHome={() => navigateTo("home")}
         onNavigatePage={navigateTo}
-        campaigns={campaigns}
+        campaigns={visibleCampaigns}
         campaignsLoading={campaignsLoading}
         campaignsError={campaignsError}
         onOpenCampaign={(campaignId) => navigateTo("protocols", campaignId)}
@@ -1223,13 +1543,13 @@ export default function App() {
   }
 
   if (route === "rewards") {
-    return (
+    return renderWithChainSelector(
       <ZusRewards
         wallet={wallet}
         onConnect={connectWallet}
         onNavigateHome={() => navigateTo("home")}
         onNavigatePage={navigateTo}
-        campaigns={campaigns}
+        campaigns={visibleCampaigns}
         campaignsLoading={campaignsLoading}
         campaignsError={campaignsError}
         onOpenCampaign={(campaignId) => navigateTo("protocols", campaignId)}
@@ -1238,20 +1558,21 @@ export default function App() {
   }
 
   if (route === "protocols") {
-    return (
+    return renderWithChainSelector(
       <ZusProtocolDetail
         wallet={wallet}
         onConnect={connectWallet}
         onNavigateBack={() => navigateTo("rewards")}
         onNavigateHome={() => navigateTo("home")}
         onNavigatePage={navigateTo}
+        selectedChain={selectedChain}
         campaignId={selectedCampaignId}
         campaign={campaigns.find((item) => item.campaign_id === selectedCampaignId) || null}
       />
     );
   }
 
-  return (
+  return renderWithChainSelector(
     <>
       {wallet.error ? (
         <div

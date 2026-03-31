@@ -1,0 +1,1 @@
+../../../contracts/starknet/mock_erc20.cairo

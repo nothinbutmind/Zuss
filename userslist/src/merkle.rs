@@ -22,7 +22,7 @@ use uuid::Uuid;
 const TREE_DEPTH: usize = 12;
 const MAX_RECIPIENTS: usize = 1 << TREE_DEPTH;
 const HASH_ALGORITHM: &str = "poseidon2_bn254";
-const LEAF_ENCODING: &str = "field(uint160(address))";
+const LEAF_ENCODING: &str = "field(reduced_hex_address)";
 
 pub struct AppState {
     pub pool: Option<PgPool>,
@@ -249,9 +249,15 @@ pub async fn get_claim_payload_by_path(
     let registered = filecoin
         .fetch_registered_campaign(&onchain_campaign_id)
         .await?;
-    let contract_claim = filecoin
-        .fetch_registered_claim(&onchain_campaign_id, &leaf_address)
-        .await?;
+    let contract_claim = if is_evm_sized_address(&leaf_address) {
+        Some(
+            filecoin
+                .fetch_registered_claim(&onchain_campaign_id, &leaf_address)
+                .await?,
+        )
+    } else {
+        None
+    };
     let claims = reconstruct_claims_from_published(
         &registered.payload,
         &format!(
@@ -275,11 +281,13 @@ pub async fn get_claim_payload_by_path(
     let reconstructed_index = usize::try_from(claim.index).map_err(|_| {
         AppError::internal("negative leaf index reconstructed from Filecoin payload")
     })?;
-    if reconstructed_index != contract_claim.index || claim.amount != contract_claim.amount {
-        return Err(AppError::internal(format!(
-            "Filecoin payload claim data does not match the Zus protocol record for {}",
-            leaf_address
-        )));
+    if let Some(contract_claim) = contract_claim {
+        if reconstructed_index != contract_claim.index || claim.amount != contract_claim.amount {
+            return Err(AppError::internal(format!(
+                "Filecoin payload claim data does not match the Zus protocol record for {}",
+                leaf_address
+            )));
+        }
     }
 
     Ok(Json(claim_payload_from_components(
@@ -472,6 +480,7 @@ fn reconstruct_campaign_from_published(
             name: payload.campaign.name.clone(),
             campaign_creator_address,
             merkle_root: payload.campaign.merkle_root.clone(),
+            execution_chain: payload.campaign.execution_chain.clone(),
             leaf_count: claims.len(),
             depth: TREE_DEPTH,
             hash_algorithm: HASH_ALGORITHM.to_string(),
@@ -611,6 +620,7 @@ fn prepare_campaign(payload: CreateCampaignRequest) -> Result<PreparedCampaign, 
             name: name.to_owned(),
             campaign_creator_address,
             merkle_root: merkle.root,
+            execution_chain: Some(normalize_execution_chain(payload.execution_chain.as_deref())?),
             leaf_count,
             depth,
             hash_algorithm: HASH_ALGORITHM.to_string(),
@@ -630,6 +640,7 @@ fn campaign_summary_from_row(row: CampaignSummaryRow) -> Result<CampaignSummary,
         name: row.name,
         campaign_creator_address: row.campaign_creator_address,
         merkle_root: row.merkle_root,
+        execution_chain: None,
         leaf_count: usize::try_from(row.leaf_count)
             .map_err(|_| AppError::internal("negative leaf count loaded from database"))?,
         depth: usize::try_from(row.depth)
@@ -654,6 +665,7 @@ fn claim_payload_from_row(row: ClaimPayloadRow) -> Result<ClaimPayloadResponse, 
         onchain_campaign_id: uuid_to_onchain_campaign_id(row.campaign_id),
         name: row.name,
         campaign_creator_address: row.campaign_creator_address,
+        execution_chain: None,
         leaf_address: row.leaf_address,
         amount: row.amount,
         index,
@@ -698,6 +710,7 @@ fn claim_payload_from_components(
         onchain_campaign_id: campaign.onchain_campaign_id.clone(),
         name: campaign.name.clone(),
         campaign_creator_address: campaign.campaign_creator_address.clone(),
+        execution_chain: campaign.execution_chain.clone(),
         leaf_address: claim.leaf_address.clone(),
         amount: claim.amount.clone(),
         index,
@@ -752,24 +765,48 @@ fn normalize_recipients(
 
 fn normalize_address(address: &str) -> Result<String, AppError> {
     let trimmed = address.trim();
-    if trimmed.len() != 42 || !trimmed.starts_with("0x") {
+    if !trimmed.starts_with("0x") {
         return Err(AppError::bad_request(format!(
-            "invalid Ethereum address format: {}",
+            "invalid hex address format: {}",
             trimmed
         )));
     }
 
-    if !trimmed[2..]
+    let hex = trimmed[2..].trim_start_matches('0');
+    let normalized_hex = if hex.is_empty() { "0" } else { hex };
+
+    if normalized_hex.len() > 64 {
+        return Err(AppError::bad_request(format!(
+            "hex address must fit within 32 bytes: {}",
+            trimmed
+        )));
+    }
+
+    if !normalized_hex
         .chars()
         .all(|character| character.is_ascii_hexdigit())
     {
         return Err(AppError::bad_request(format!(
-            "invalid Ethereum address hex: {}",
+            "invalid hex address: {}",
             trimmed
         )));
     }
 
-    Ok(format!("0x{}", trimmed[2..].to_ascii_lowercase()))
+    Ok(format!("0x{:0>64}", normalized_hex.to_ascii_lowercase()))
+}
+
+fn normalize_execution_chain(chain: Option<&str>) -> Result<String, AppError> {
+    match chain.unwrap_or("starknet").trim().to_ascii_lowercase().as_str() {
+        "starknet" => Ok("starknet".to_string()),
+        "flow" | "flow_evm" | "flow-evm" => Ok("flow_evm".to_string()),
+        other => Err(AppError::bad_request(format!(
+            "unsupported execution_chain `{other}`; expected `starknet` or `flow_evm`"
+        ))),
+    }
+}
+
+fn is_evm_sized_address(address: &str) -> bool {
+    address.len() == 66 && address.starts_with("0x000000000000000000000000")
 }
 
 fn normalize_amount(amount: &str) -> Result<String, AppError> {

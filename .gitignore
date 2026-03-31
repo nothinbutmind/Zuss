@@ -1,2 +1,12 @@
 /tui/target/
 /userslist/target/
+/.pnpm-store/
+/frontend/dist/
+/frontend/node_modules/
+/starknet/.snfoundry_cache/
+/starknet/node_modules/
+/starknet/target/
+/verifier/cache/
+/verifier/out/
+/zusprotocol/cache/
+/zusprotocol/out/

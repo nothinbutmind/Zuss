@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
-import { isAddress } from "viem";
-import { resolveApiUrl } from "./config.js";
+import { appConfig, getExplorerBaseUrl, resolveApiUrl } from "./config.js";
+import {
+  isValidAddressForChain,
+  normalizeAddressForChain,
+  prepareRelayedClaimForChain,
+} from "./chains.js";
 
 const CYAN = "#00ffc8";
 const CYAN_DIM = "#00ddb0";
@@ -62,6 +66,20 @@ function shortAddress(value) {
   }
 
   return `${value.slice(0, 6)}...${value.slice(-4)}`;
+}
+
+function downloadJsonFile(filename, payload) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 function walletLabel(account, connecting) {
@@ -318,7 +336,23 @@ function Scanline() {
   );
 }
 
-function ClaimCheckPanel({ campaign, claimAddress, setClaimAddress, claimState, onSubmit }) {
+function ClaimCheckPanel({
+  campaign,
+  wallet,
+  selectedChain,
+  claimAddress,
+  setClaimAddress,
+  claimState,
+  relayState,
+  recoveryNote,
+  onDownloadRecoveryNote,
+  onSubmit,
+  onRelayClaim,
+}) {
+  const explorerUrl = relayState.txHash
+    ? `${getExplorerBaseUrl(selectedChain).replace(/\/$/, "")}/${relayState.txHash}`
+    : "";
+
   return (
     <div style={{ animation: "fadeUp .6s .8s both" }}>
       <div
@@ -428,6 +462,82 @@ function ClaimCheckPanel({ campaign, claimAddress, setClaimAddress, claimState, 
           <div style={{ marginTop: 12, fontFamily: MONO, fontSize: 9, color: MUTED, lineHeight: 1.8 }}>
             CLAIM PAYLOAD IS AVAILABLE FROM <code>{campaign.campaign_id}</code>. YOU CAN NOW CONTINUE WITH THE FULL CLAIM FLOW.
           </div>
+
+          <div style={{ marginTop: 16, borderTop: `1px solid ${BORDER}`, paddingTop: 16 }}>
+            <div style={{ fontFamily: MONO, fontSize: 9, color: MUTED2, letterSpacing: 2, marginBottom: 8 }}>
+              PRIVATE_RELAY_SUBMISSION
+            </div>
+            <div style={{ fontFamily: MONO, fontSize: 10, color: MUTED, lineHeight: 1.8, marginBottom: 14 }}>
+              SIGN OFF-CHAIN WITH THE ELIGIBLE WALLET, GENERATE THE CLAIM WITNESS LOCALLY, AND LET THE RELAYER SUBMIT THE ONCHAIN TRANSACTION FROM ITS OWN ACCOUNT.
+            </div>
+            <button
+              onClick={onRelayClaim}
+              disabled={relayState.loading}
+              style={{
+                fontFamily: MONO,
+                fontSize: 11,
+                letterSpacing: 3,
+                color: relayState.loading ? BG : CYAN,
+                border: `1px solid ${CYAN}`,
+                padding: "14px 26px",
+                cursor: relayState.loading ? "progress" : "pointer",
+                background: relayState.loading ? CYAN : "transparent",
+                boxShadow: "0 0 12px rgba(0,255,200,.15)",
+                transition: "all .25s",
+              }}
+            >
+              {relayState.loading ? "RELAYING" : wallet.account ? "RELAY CLAIM" : "CONNECT TO RELAY"}
+            </button>
+
+            {recoveryNote ? (
+              <button
+                onClick={onDownloadRecoveryNote}
+                disabled={relayState.loading}
+                style={{
+                  marginTop: 12,
+                  marginLeft: 12,
+                  fontFamily: MONO,
+                  fontSize: 10,
+                  letterSpacing: 2.4,
+                  color: relayState.loading ? MUTED : CYAN_DIM,
+                  border: `1px solid ${CYAN_DIM}`,
+                  padding: "12px 18px",
+                  cursor: relayState.loading ? "default" : "pointer",
+                  background: "transparent",
+                  boxShadow: "0 0 10px rgba(0,255,200,.08)",
+                  transition: "all .25s",
+                }}
+              >
+                DOWNLOAD RECOVERY NOTE
+              </button>
+            ) : null}
+
+            {recoveryNote ? (
+              <div style={{ marginTop: 12, fontFamily: MONO, fontSize: 9, color: MUTED, lineHeight: 1.8 }}>
+                SAVE THIS NOTE BEFORE YOU LEAVE. IT CONTAINS THE LOCAL VALUES THE TUI NEEDS TO
+                REBUILD THE STARKNET STEALTH SPEND MATERIAL.
+              </div>
+            ) : null}
+
+            {relayState.error ? (
+              <div style={{ marginTop: 12, fontFamily: MONO, fontSize: 10, color: "#d2a0a0", lineHeight: 1.8 }}>
+                {relayState.error}
+              </div>
+            ) : null}
+
+            {relayState.txHash ? (
+              <div style={{ marginTop: 12, fontFamily: MONO, fontSize: 10, color: CYAN, lineHeight: 1.8 }}>
+                RELAYER_TX:{" "}
+                {explorerUrl ? (
+                  <a href={explorerUrl} target="_blank" rel="noreferrer" style={{ color: CYAN }}>
+                    {relayState.txHash}
+                  </a>
+                ) : (
+                  relayState.txHash
+                )}
+              </div>
+            ) : null}
+          </div>
         </div>
       ) : null}
     </div>
@@ -440,6 +550,7 @@ export default function App({
   onNavigateBack,
   onNavigateHome,
   onNavigatePage,
+  selectedChain,
   campaignId,
   campaign,
 }) {
@@ -453,6 +564,13 @@ export default function App({
     error: "",
     payload: null,
   });
+  const [relayState, setRelayState] = useState({
+    loading: false,
+    error: "",
+    txHash: "",
+  });
+  const [recoveryNote, setRecoveryNote] = useState(null);
+  const activeChain = campaignData?.execution_chain || selectedChain;
 
   useEffect(() => {
     const handleResize = () => {
@@ -517,14 +635,16 @@ export default function App({
       return;
     }
 
-    if (!isAddress(claimAddress.trim())) {
+    if (!isValidAddressForChain(activeChain, claimAddress.trim())) {
       setClaimState({
         loading: false,
-        error: "Enter a valid EVM address to check this campaign.",
+        error: "Enter a valid wallet address to check this campaign.",
         payload: null,
       });
       return;
     }
+
+    const normalizedAddress = normalizeAddressForChain(activeChain, claimAddress.trim());
 
     setClaimState({
       loading: true,
@@ -536,7 +656,7 @@ export default function App({
       const payload = await readJson(
         await fetch(
           resolveApiUrl(
-            `/campaigns/${campaignData.campaign_id}/claim/${encodeURIComponent(claimAddress.trim())}`,
+            `/campaigns/${campaignData.campaign_id}/claim/${encodeURIComponent(normalizedAddress)}`,
           ),
         ),
       );
@@ -546,13 +666,114 @@ export default function App({
         error: "",
         payload,
       });
+      setRelayState({
+        loading: false,
+        error: "",
+        txHash: "",
+      });
+      setRecoveryNote(null);
     } catch (error) {
       setClaimState({
         loading: false,
         error: parseErrorMessage(error),
         payload: null,
       });
+      setRecoveryNote(null);
     }
+  };
+
+  const handleRelayClaim = async () => {
+    if (!claimState.payload) {
+      return;
+    }
+
+    if (!wallet.account || !wallet.walletAccount) {
+      setRelayState({
+        loading: false,
+        error: "Connect the eligible wallet before relaying a claim.",
+        txHash: "",
+      });
+      return;
+    }
+
+    const connectedAddress = normalizeAddressForChain(activeChain, wallet.account);
+    if (connectedAddress !== normalizeAddressForChain(activeChain, claimState.payload.leaf_address)) {
+      setRelayState({
+        loading: false,
+        error: "Connect the same eligible wallet address that you checked against this campaign.",
+        txHash: "",
+      });
+      return;
+    }
+
+    setRelayState({
+      loading: true,
+      error: "",
+      txHash: "",
+    });
+
+    try {
+      const requestBody = await prepareRelayedClaimForChain(
+        activeChain,
+        appConfig,
+        wallet.walletAccount,
+        wallet,
+        claimState.payload,
+      );
+      const nextRecoveryNote =
+        activeChain === "starknet" && requestBody?.local_recovery
+          ? {
+              chain: "starknet",
+              campaign_id: requestBody.campaign_id,
+              eligible_wallet: requestBody.claim?.claimant_address || claimState.payload.leaf_address,
+              created_at: new Date().toISOString(),
+              recovery: requestBody.local_recovery,
+            }
+          : null;
+
+      setRecoveryNote(nextRecoveryNote);
+
+      const response = await readJson(
+        await fetch(`${appConfig.relayerUrl.replace(/\/$/, "")}/relay-claim`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        }),
+      );
+
+      if (nextRecoveryNote) {
+        setRecoveryNote({
+          ...nextRecoveryNote,
+          relayed_transaction_hash: response.transaction_hash || response.txHash || "",
+        });
+      }
+
+      setRelayState({
+        loading: false,
+        error: "",
+        txHash: response.transaction_hash || response.txHash || "",
+      });
+    } catch (error) {
+      setRelayState({
+        loading: false,
+        error: parseErrorMessage(error),
+        txHash: "",
+      });
+    }
+  };
+
+  const handleDownloadRecoveryNote = () => {
+    if (!recoveryNote) {
+      return;
+    }
+
+    const safeCampaignId = `${recoveryNote.campaign_id || campaignData?.campaign_id || "campaign"}`
+      .replace(/[^a-zA-Z0-9_-]+/g, "-")
+      .slice(0, 80);
+
+    downloadJsonFile(`zus-starknet-recovery-${safeCampaignId}.json`, recoveryNote);
   };
 
   const utilization = campaignData
@@ -932,11 +1153,19 @@ export default function App({
 
                 <ClaimCheckPanel
                   campaign={campaignData}
+                  wallet={wallet}
+                  selectedChain={activeChain}
                   claimAddress={claimAddress}
                   setClaimAddress={setClaimAddress}
                   claimState={claimState}
+                  relayState={relayState}
+                  recoveryNote={recoveryNote}
+                  onDownloadRecoveryNote={handleDownloadRecoveryNote}
                   onSubmit={() => {
                     void handleCheckEligibility();
+                  }}
+                  onRelayClaim={() => {
+                    void handleRelayClaim();
                   }}
                 />
               </>
