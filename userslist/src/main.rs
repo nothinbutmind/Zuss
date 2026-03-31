@@ -1,7 +1,6 @@
 mod error;
 mod filecoin;
 mod merkle;
-mod postgres;
 mod types;
 
 use crate::filecoin::FilecoinClient;
@@ -10,14 +9,12 @@ use crate::merkle::{
     get_filecoin_campaign, get_filecoin_claim_payload_by_path, health, list_campaigns,
     list_creator_campaigns,
 };
-use crate::postgres::init_db;
 use axum::{
     Router,
     http::{Method, header},
     routing::{get, post},
 };
 use dotenvy::dotenv;
-use sqlx::postgres::PgPoolOptions;
 use std::{env, net::SocketAddr, sync::Arc};
 use tower_http::cors::{Any, CorsLayer};
 
@@ -25,19 +22,7 @@ use tower_http::cors::{Any, CorsLayer};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
 
-    let pool = if let Ok(database_url) = env::var("DATABASE_URL") {
-        let pool = PgPoolOptions::new()
-            .max_connections(5)
-            .connect(&database_url)
-            .await?;
-        init_db(&pool).await?;
-        Some(pool)
-    } else {
-        None
-    };
-
     let state = Arc::new(AppState {
-        pool,
         filecoin: FilecoinClient::from_env(),
     });
     let cors = CorsLayer::new()

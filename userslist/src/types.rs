@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 #[derive(Debug, Serialize)]
 pub struct HealthResponse {
@@ -122,7 +121,6 @@ pub struct FilecoinCampaignResponse {
 
 #[derive(Debug, Clone)]
 pub struct PreparedCampaign {
-    pub campaign_id: Uuid,
     pub summary: CampaignSummary,
     pub claims: Vec<PreparedClaim>,
 }

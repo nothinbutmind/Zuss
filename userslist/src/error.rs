@@ -4,7 +4,6 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use serde::Serialize;
-use sqlx::Error as SqlxError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -15,8 +14,6 @@ pub enum AppError {
     NotFound(String),
     #[error("{0}")]
     Internal(String),
-    #[error("database error")]
-    Database(#[from] SqlxError),
 }
 
 #[derive(Debug, Serialize)]
@@ -47,7 +44,7 @@ impl AppError {
         match self {
             Self::BadRequest(_) => StatusCode::BAD_REQUEST,
             Self::NotFound(_) => StatusCode::NOT_FOUND,
-            Self::Internal(_) | Self::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -55,7 +52,7 @@ impl AppError {
         match self {
             Self::BadRequest(_) => "bad_request",
             Self::NotFound(_) => "not_found",
-            Self::Internal(_) | Self::Database(_) => "internal_error",
+            Self::Internal(_) => "internal_error",
         }
     }
 }

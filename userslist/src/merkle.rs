@@ -15,7 +15,6 @@ use axum::{
 };
 use bn254_blackbox_solver::poseidon2_permutation;
 use num_bigint::BigUint;
-use sqlx::{FromRow, PgPool, types::Json as SqlJson};
 use std::{collections::HashSet, sync::Arc};
 use uuid::Uuid;
 
@@ -25,7 +24,6 @@ const HASH_ALGORITHM: &str = "poseidon2_bn254";
 const LEAF_ENCODING: &str = "field(reduced_hex_address)";
 
 pub struct AppState {
-    pub pool: Option<PgPool>,
     pub filecoin: Option<FilecoinClient>,
 }
 
@@ -35,37 +33,6 @@ pub type SharedState = Arc<AppState>;
 struct NormalizedRecipient {
     leaf_address: String,
     amount: String,
-}
-
-#[derive(Debug, FromRow)]
-struct CampaignSummaryRow {
-    campaign_id: Uuid,
-    name: String,
-    campaign_creator_address: String,
-    merkle_root: String,
-    leaf_count: i32,
-    depth: i32,
-    hash_algorithm: String,
-    leaf_encoding: String,
-    filecoin_cid: Option<String>,
-    filecoin_url: Option<String>,
-}
-
-#[derive(Debug, FromRow)]
-struct ClaimPayloadRow {
-    campaign_id: Uuid,
-    name: String,
-    campaign_creator_address: String,
-    leaf_address: String,
-    amount: String,
-    leaf_index: i32,
-    leaf_value: String,
-    proof: SqlJson<Vec<String>>,
-    merkle_root: String,
-    hash_algorithm: String,
-    leaf_encoding: String,
-    filecoin_cid: Option<String>,
-    filecoin_url: Option<String>,
 }
 
 #[derive(Debug)]
@@ -95,10 +62,6 @@ pub async fn create_campaign(
     prepared.summary.filecoin_cid = None;
     prepared.summary.filecoin_url = Some(upload.url);
     prepared.summary.filecoin_tx_hash = Some(upload.tx_hash);
-
-    if let Some(pool) = &state.pool {
-        insert_campaign(pool, &prepared).await?;
-    }
 
     Ok(Json(prepared.summary))
 }
@@ -143,39 +106,8 @@ pub async fn get_filecoin_claim_payload_by_path(
 pub async fn list_campaigns(
     State(state): State<SharedState>,
 ) -> Result<Json<Vec<CampaignSummary>>, AppError> {
-    if let Some(pool) = state.pool.as_ref() {
-        let rows = sqlx::query_as::<_, CampaignSummaryRow>(
-            r#"
-            SELECT
-                id AS campaign_id,
-                name,
-                campaign_creator_address,
-                merkle_root,
-                leaf_count,
-                depth,
-                hash_algorithm,
-                leaf_encoding,
-                filecoin_cid,
-                filecoin_url
-            FROM campaigns
-            ORDER BY created_at DESC, name ASC
-            "#,
-        )
-        .fetch_all(pool)
-        .await?;
-
-        let campaigns = rows
-            .into_iter()
-            .map(campaign_summary_from_row)
-            .collect::<Result<Vec<_>, _>>()?;
-
-        return Ok(Json(campaigns));
-    }
-
     let filecoin = state.filecoin.as_ref().ok_or_else(|| {
-        AppError::bad_request(
-            "listing campaigns requires either DATABASE_URL or FILECOIN_REGISTRY_ADDRESS",
-        )
+        AppError::bad_request("FILECOIN_REGISTRY_ADDRESS must be set to list campaigns")
     })?;
 
     Ok(Json(filecoin.list_registered_campaigns().await?))
@@ -185,39 +117,10 @@ pub async fn get_campaign(
     State(state): State<SharedState>,
     Path(campaign_id): Path<String>,
 ) -> Result<Json<CampaignSummary>, AppError> {
-    if let Some(pool) = state.pool.as_ref() {
-        let campaign_id = parse_campaign_id(&campaign_id)?;
-        let row = sqlx::query_as::<_, CampaignSummaryRow>(
-            r#"
-            SELECT
-                id AS campaign_id,
-                name,
-                campaign_creator_address,
-                merkle_root,
-                leaf_count,
-                depth,
-                hash_algorithm,
-                leaf_encoding,
-                filecoin_cid,
-                filecoin_url
-            FROM campaigns
-            WHERE id = $1
-            "#,
-        )
-        .bind(campaign_id)
-        .fetch_optional(pool)
-        .await?
-        .ok_or_else(|| AppError::not_found(format!("campaign not found: {}", campaign_id)))?;
-
-        return Ok(Json(campaign_summary_from_row(row)?));
-    }
-
     let campaign_id = parse_campaign_id(&campaign_id)?;
     let onchain_campaign_id = uuid_to_onchain_campaign_id(campaign_id);
     let filecoin = state.filecoin.as_ref().ok_or_else(|| {
-        AppError::bad_request(
-            "fetching campaigns by id requires either DATABASE_URL or FILECOIN_REGISTRY_ADDRESS",
-        )
+        AppError::bad_request("FILECOIN_REGISTRY_ADDRESS must be set to fetch campaigns by id")
     })?;
 
     Ok(Json(
@@ -233,18 +136,10 @@ pub async fn get_claim_payload_by_path(
     Path((campaign_id, leaf_address)): Path<(String, String)>,
 ) -> Result<Json<ClaimPayloadResponse>, AppError> {
     let leaf_address = normalize_address(&leaf_address)?;
-    if let Some(pool) = state.pool.as_ref() {
-        let campaign_id = parse_campaign_id(&campaign_id)?;
-        let response = fetch_claim_payload(pool, campaign_id, &leaf_address).await?;
-        return Ok(Json(response));
-    }
-
     let campaign_id = parse_campaign_id(&campaign_id)?;
     let onchain_campaign_id = uuid_to_onchain_campaign_id(campaign_id);
     let filecoin = state.filecoin.as_ref().ok_or_else(|| {
-        AppError::bad_request(
-            "claim lookups require either DATABASE_URL or FILECOIN_REGISTRY_ADDRESS",
-        )
+        AppError::bad_request("FILECOIN_REGISTRY_ADDRESS must be set to look up claim payloads")
     })?;
     let registered = filecoin
         .fetch_registered_campaign(&onchain_campaign_id)
@@ -311,44 +206,8 @@ pub async fn list_creator_campaigns(
     Path(campaign_creator_address): Path<String>,
 ) -> Result<Json<CreatorCampaignsResponse>, AppError> {
     let campaign_creator_address = normalize_address(&campaign_creator_address)?;
-    if let Some(pool) = state.pool.as_ref() {
-        let rows = sqlx::query_as::<_, CampaignSummaryRow>(
-            r#"
-            SELECT
-                id AS campaign_id,
-                name,
-                campaign_creator_address,
-                merkle_root,
-                leaf_count,
-                depth,
-                hash_algorithm,
-                leaf_encoding,
-                filecoin_cid,
-                filecoin_url
-            FROM campaigns
-            WHERE campaign_creator_address = $1
-            ORDER BY created_at DESC, name ASC
-            "#,
-        )
-        .bind(&campaign_creator_address)
-        .fetch_all(pool)
-        .await?;
-
-        let campaigns = rows
-            .into_iter()
-            .map(campaign_summary_from_row)
-            .collect::<Result<Vec<_>, _>>()?;
-
-        return Ok(Json(CreatorCampaignsResponse {
-            campaign_creator_address,
-            campaigns,
-        }));
-    }
-
     let filecoin = state.filecoin.as_ref().ok_or_else(|| {
-        AppError::bad_request(
-            "listing creator campaigns requires either DATABASE_URL or FILECOIN_REGISTRY_ADDRESS",
-        )
+        AppError::bad_request("FILECOIN_REGISTRY_ADDRESS must be set to list creator campaigns")
     })?;
     let campaigns = filecoin
         .list_registered_creator_campaigns(&campaign_creator_address)
@@ -358,111 +217,6 @@ pub async fn list_creator_campaigns(
         campaign_creator_address,
         campaigns,
     }))
-}
-
-async fn insert_campaign(pool: &PgPool, prepared: &PreparedCampaign) -> Result<(), AppError> {
-    let mut transaction = pool.begin().await?;
-
-    sqlx::query(
-        r#"
-        INSERT INTO campaigns (
-            id,
-            name,
-            campaign_creator_address,
-            merkle_root,
-            leaf_count,
-            depth,
-            hash_algorithm,
-            leaf_encoding,
-            filecoin_cid,
-            filecoin_url
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        "#,
-    )
-    .bind(prepared.campaign_id)
-    .bind(&prepared.summary.name)
-    .bind(&prepared.summary.campaign_creator_address)
-    .bind(&prepared.summary.merkle_root)
-    .bind(i32::try_from(prepared.summary.leaf_count).map_err(|_| {
-        AppError::internal("leaf count overflow while storing the prepared campaign")
-    })?)
-    .bind(i32::try_from(prepared.summary.depth).map_err(|_| {
-        AppError::internal("tree depth overflow while storing the prepared campaign")
-    })?)
-    .bind(&prepared.summary.hash_algorithm)
-    .bind(&prepared.summary.leaf_encoding)
-    .bind(&prepared.summary.filecoin_cid)
-    .bind(&prepared.summary.filecoin_url)
-    .execute(&mut *transaction)
-    .await?;
-
-    for claim in &prepared.claims {
-        sqlx::query(
-            r#"
-            INSERT INTO campaign_claims (
-                campaign_id,
-                leaf_address,
-                amount,
-                leaf_index,
-                leaf_hash,
-                proof
-            )
-            VALUES ($1, $2, $3, $4, $5, $6)
-            "#,
-        )
-        .bind(prepared.campaign_id)
-        .bind(&claim.leaf_address)
-        .bind(&claim.amount)
-        .bind(claim.index)
-        .bind(&claim.leaf_value)
-        .bind(SqlJson(&claim.proof))
-        .execute(&mut *transaction)
-        .await?;
-    }
-
-    transaction.commit().await?;
-    Ok(())
-}
-
-async fn fetch_claim_payload(
-    pool: &PgPool,
-    campaign_id: Uuid,
-    leaf_address: &str,
-) -> Result<ClaimPayloadResponse, AppError> {
-    let row = sqlx::query_as::<_, ClaimPayloadRow>(
-        r#"
-        SELECT
-            c.id AS campaign_id,
-            c.name,
-            c.campaign_creator_address,
-            cc.leaf_address,
-            cc.amount,
-            cc.leaf_index,
-            cc.leaf_hash AS leaf_value,
-            cc.proof,
-            c.merkle_root,
-            c.hash_algorithm,
-            c.leaf_encoding,
-            c.filecoin_cid,
-            c.filecoin_url
-        FROM campaign_claims cc
-        INNER JOIN campaigns c ON c.id = cc.campaign_id
-        WHERE c.id = $1 AND cc.leaf_address = $2
-        "#,
-    )
-    .bind(campaign_id)
-    .bind(leaf_address)
-    .fetch_optional(pool)
-    .await?
-    .ok_or_else(|| {
-        AppError::not_found(format!(
-            "claim payload not found for campaign {} and address {}",
-            campaign_id, leaf_address
-        ))
-    })?;
-
-    claim_payload_from_row(row)
 }
 
 fn reconstruct_campaign_from_published(
@@ -613,7 +367,6 @@ fn prepare_campaign(payload: CreateCampaignRequest) -> Result<PreparedCampaign, 
     let depth = TREE_DEPTH;
 
     Ok(PreparedCampaign {
-        campaign_id,
         summary: CampaignSummary {
             campaign_id: campaign_id.to_string(),
             onchain_campaign_id: uuid_to_onchain_campaign_id(campaign_id),
@@ -630,60 +383,6 @@ fn prepare_campaign(payload: CreateCampaignRequest) -> Result<PreparedCampaign, 
             filecoin_tx_hash: None,
         },
         claims,
-    })
-}
-
-fn campaign_summary_from_row(row: CampaignSummaryRow) -> Result<CampaignSummary, AppError> {
-    Ok(CampaignSummary {
-        campaign_id: row.campaign_id.to_string(),
-        onchain_campaign_id: uuid_to_onchain_campaign_id(row.campaign_id),
-        name: row.name,
-        campaign_creator_address: row.campaign_creator_address,
-        merkle_root: row.merkle_root,
-        execution_chain: None,
-        leaf_count: usize::try_from(row.leaf_count)
-            .map_err(|_| AppError::internal("negative leaf count loaded from database"))?,
-        depth: usize::try_from(row.depth)
-            .map_err(|_| AppError::internal("negative tree depth loaded from database"))?,
-        hash_algorithm: row.hash_algorithm,
-        leaf_encoding: row.leaf_encoding,
-        filecoin_cid: row.filecoin_cid,
-        filecoin_url: row.filecoin_url,
-        filecoin_tx_hash: None,
-    })
-}
-
-fn claim_payload_from_row(row: ClaimPayloadRow) -> Result<ClaimPayloadResponse, AppError> {
-    let index = usize::try_from(row.leaf_index)
-        .map_err(|_| AppError::internal("negative leaf index loaded from database"))?;
-    let proof = row.proof.0;
-    let merkle_root = row.merkle_root;
-    let leaf_value = row.leaf_value;
-
-    Ok(ClaimPayloadResponse {
-        campaign_id: row.campaign_id.to_string(),
-        onchain_campaign_id: uuid_to_onchain_campaign_id(row.campaign_id),
-        name: row.name,
-        campaign_creator_address: row.campaign_creator_address,
-        execution_chain: None,
-        leaf_address: row.leaf_address,
-        amount: row.amount,
-        index,
-        leaf_value: leaf_value.clone(),
-        proof: proof.clone(),
-        merkle_root: merkle_root.clone(),
-        hash_algorithm: row.hash_algorithm,
-        leaf_encoding: row.leaf_encoding,
-        filecoin_cid: row.filecoin_cid,
-        filecoin_url: row.filecoin_url,
-        filecoin_tx_hash: None,
-        noir_inputs: NoirClaimInputs {
-            eligible_root: merkle_root,
-            eligible_path: proof,
-            eligible_index: index.to_string(),
-            leaf_value,
-            tree_depth: TREE_DEPTH,
-        },
     })
 }
 
