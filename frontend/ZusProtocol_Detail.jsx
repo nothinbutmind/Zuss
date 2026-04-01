@@ -65,6 +65,25 @@ function shortAddress(value) {
   return `${value.slice(0, 6)}...${value.slice(-4)}`;
 }
 
+function chunkDisplayValue(value, size = 10) {
+  const normalized = `${value ?? ""}`.trim();
+  if (!normalized) {
+    return [];
+  }
+
+  if (normalized.startsWith("0x")) {
+    const body = normalized.slice(2);
+    const chunks = body.match(new RegExp(`.{1,${size}}`, "g")) || [];
+    if (chunks.length === 0) {
+      return [normalized];
+    }
+
+    return [`0x${chunks[0]}`, ...chunks.slice(1)];
+  }
+
+  return normalized.match(new RegExp(`.{1,${size}}`, "g")) || [normalized];
+}
+
 function downloadJsonFile(filename, payload) {
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
     type: "application/json",
@@ -330,6 +349,64 @@ function Scanline() {
         animation: "scanline 7s linear infinite",
       }}
     />
+  );
+}
+
+function LongValueBlock({ value, color = TEXT, chunkSize = 10 }) {
+  const chunks = chunkDisplayValue(value, chunkSize);
+
+  return (
+    <div
+      title={value}
+      style={{
+        position: "relative",
+        minHeight: 54,
+        padding: "12px 14px 12px 18px",
+        border: `1px solid rgba(0,255,200,.1)`,
+        background:
+          "linear-gradient(180deg, rgba(0,255,200,.06) 0%, rgba(0,255,200,.015) 100%)",
+        boxShadow: "inset 0 0 0 1px rgba(255,255,255,.015)",
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: 3,
+          background: "linear-gradient(180deg, rgba(0,255,200,.8), rgba(0,255,200,.18))",
+        }}
+      />
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "8px 10px",
+          alignItems: "center",
+          minWidth: 0,
+        }}
+      >
+        {chunks.map((chunk, index) => (
+          <span
+            key={`${chunk}-${index}`}
+            style={{
+              fontFamily: MONO,
+              fontSize: 11,
+              lineHeight: 1.7,
+              letterSpacing: 0.7,
+              color,
+              padding: "2px 0",
+              textShadow: color === CYAN ? "0 0 10px rgba(0,255,200,.16)" : "none",
+              overflowWrap: "anywhere",
+            }}
+          >
+            {chunk}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -1015,21 +1092,21 @@ export default function App({
                     CAMPAIGN_METADATA
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 16 }}>
-                    <div>
+                    <div style={{ minWidth: 0 }}>
                       <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 1.5, marginBottom: 5 }}>CREATOR_ADDRESS</div>
-                      <div style={{ fontFamily: MONO, fontSize: 12, color: TEXT, lineHeight: 1.7 }}>{campaignData.campaign_creator_address}</div>
+                      <LongValueBlock value={campaignData.campaign_creator_address} color={TEXT} chunkSize={10} />
                     </div>
-                    <div>
+                    <div style={{ minWidth: 0 }}>
                       <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 1.5, marginBottom: 5 }}>MERKLE_ROOT</div>
-                      <div style={{ fontFamily: MONO, fontSize: 12, color: CYAN, lineHeight: 1.7, wordBreak: "break-all" }}>{campaignData.merkle_root}</div>
+                      <LongValueBlock value={campaignData.merkle_root} color={CYAN} chunkSize={12} />
                     </div>
-                    <div>
+                    <div style={{ minWidth: 0 }}>
                       <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 1.5, marginBottom: 5 }}>HASH_ALGORITHM</div>
-                      <div style={{ fontFamily: MONO, fontSize: 12, color: TEXT, lineHeight: 1.7 }}>{campaignData.hash_algorithm}</div>
+                      <div style={{ fontFamily: MONO, fontSize: 12, color: TEXT, lineHeight: 1.7, overflowWrap: "anywhere" }}>{campaignData.hash_algorithm}</div>
                     </div>
-                    <div>
+                    <div style={{ minWidth: 0 }}>
                       <div style={{ fontFamily: MONO, fontSize: 8, color: MUTED2, letterSpacing: 1.5, marginBottom: 5 }}>LEAF_ENCODING</div>
-                      <div style={{ fontFamily: MONO, fontSize: 12, color: TEXT, lineHeight: 1.7 }}>{campaignData.leaf_encoding}</div>
+                      <div style={{ fontFamily: MONO, fontSize: 12, color: TEXT, lineHeight: 1.7, overflowWrap: "anywhere" }}>{campaignData.leaf_encoding}</div>
                     </div>
                   </div>
                 </div>
